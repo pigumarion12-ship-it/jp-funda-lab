@@ -9,7 +9,7 @@ usage:
 import os
 import sys
 
-from src import data, screens, edinet, grade, articles
+from src import data, screens, edinet, grade, articles, alerts
 
 
 def update():
@@ -48,6 +48,8 @@ def build():
     code_map = dict(zip(df["code4"], df["code"]))
     codes5 = {code_map[c] for c in shown4 if c in code_map}
     screens.build_charts(prices, codes5)
+    alerts.build_universe(df)
+    alerts.build_alerts(prices, stmts, df)
 
 
 def main():

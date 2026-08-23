@@ -126,7 +126,11 @@ footer{color:var(--sub);font-size:11px;padding:0 18px 34px}
   padding:0 5px;margin-left:6px;vertical-align:1px}
 /* chart popup */
 .cbtn{border:1px solid var(--line);background:var(--chip);border-radius:8px;font-size:12px;
-  padding:2px 7px;cursor:pointer;margin-left:6px;vertical-align:1px}
+  padding:2px 7px;cursor:pointer;margin-left:6px;vertical-align:1px;color:var(--sub)}
+.wbtn.on{color:#f59e0b;border-color:#f59e0b;background:rgba(245,158,11,.1)}
+#wbadge{display:inline-block;background:var(--bad);color:#fff;font-size:10px;font-weight:700;
+  border-radius:9px;padding:0 6px;margin-left:4px;vertical-align:1px}
+#wbadge:empty{display:none}
 #chartpop{position:fixed;z-index:60;width:320px;max-width:92vw;background:var(--card);
   border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 40px rgba(8,20,40,.25);
   padding:12px;display:none}
@@ -148,8 +152,8 @@ footer{color:var(--sub);font-size:11px;padding:0 18px 34px}
   <button class="mi" data-v="analysis" onclick="go('analysis')">A〜E分析</button>
   <div class="dttl">読む</div>
   <button class="mi" data-v="articles" onclick="go('articles')">記事</button>
-  <div class="dttl">今後</div>
-  <button class="mi dis">ウォッチリスト (準備中)</button>
+  <div class="dttl">マイリスト</div>
+  <button class="mi" data-v="watch" onclick="go('watch')">ウォッチリスト <span id="wbadge"></span></button>
 </nav>
 <header>
   <button id="menuBtn" onclick="toggleMenu()">☰</button>
@@ -220,7 +224,27 @@ document.addEventListener('click',e=>{
   if(pop.classList.contains('show')&&!pop.contains(e.target)&&!e.target.classList.contains('cbtn'))hideChart();
 });
 const VT={niokutameo:'弐億貯男式',kiyohara:'清原式',dividend:'配当バリュー成長',
-          analysis:'A〜E分析',articles:'記事'};
+          analysis:'A〜E分析',articles:'記事',watch:'ウォッチリスト'};
+let UNIVERSE=null, ALERTS=null;
+function watchList(){try{return JSON.parse(localStorage.getItem('watchSet')||'[]')}catch(e){return []}}
+function isWatched(c){return watchList().includes(c)}
+function toggleWatch(code,ev){
+  if(ev)ev.stopPropagation();
+  let l=watchList();
+  l=l.includes(code)?l.filter(x=>x!==code):[...l,code];
+  try{localStorage.setItem('watchSet',JSON.stringify(l))}catch(e){}
+  render();updateBadge();
+}
+function alertMap(){
+  const m={};
+  if(ALERTS&&ALERTS.items)ALERTS.items.forEach(a=>{m[a.code4]=a;});
+  return m;
+}
+function updateBadge(){
+  const am=alertMap();
+  const n=watchList().filter(c=>am[c]).length;
+  document.getElementById('wbadge').textContent=n>0?n:'';
+}
 const fmt=(v,suf='')=> (v===null||v===undefined)?'—':(v+suf);
 const yen=(v)=> (v===null||v===undefined)?'—':(v>=10000? (v/10000).toFixed(1)+'兆':v.toLocaleString()+'億');
 function toggleMenu(f){const d=document.getElementById('drawer'),o=document.getElementById('overlay');
@@ -259,7 +283,7 @@ function card(r,i){
   const kab=`https://kabutan.jp/stock/?code=${r.code4}`;
   const buf=`https://www.buffett-code.com/company/${r.code4}/`;
   return `<div class="card" onclick="if(event.target.tagName!=='A')this.classList.toggle('open')">
-  <div class="row1"><div class="nm" onmouseenter="hoverChart('${r.code4}','${(r.name||'').replace(/'/g,'')}',this)" onmouseleave="unhoverChart()">${i+1}. ${r.name||''}<span class="cd">${r.code4} ・ ${r.sector||''}</span><button class="cbtn" onclick="showChart('${r.code4}','${(r.name||'').replace(/'/g,'')}',this,event)">📈</button></div>
+  <div class="row1"><div class="nm" onmouseenter="hoverChart('${r.code4}','${(r.name||'').replace(/'/g,'')}',this)" onmouseleave="unhoverChart()">${i+1}. ${r.name||''}<span class="cd">${r.code4} ・ ${r.sector||''}</span><button class="cbtn" onclick="showChart('${r.code4}','${(r.name||'').replace(/'/g,'')}',this,event)">📈</button><button class="cbtn wbtn ${isWatched(r.code4)?'on':''}" onclick="toggleWatch('${r.code4}',event)">★</button></div>
     <div class="score">${fmt(r.score)}</div></div>
   <div class="row2">
     <span class="kv"><span class="l">株価</span> <b>${fmt(r.price)}</b></span>
@@ -298,7 +322,7 @@ function analysisCard(r,i){
   const buf=`https://www.buffett-code.com/company/${r.code4}/`;
   const danger=r.danger&&r.danger.length?`<div class="chips">${r.danger.map(d=>`<span class="chip b">⚠${d}</span>`).join('')}</div>`:'';
   return `<div class="card" onclick="if(event.target.tagName!=='A')this.classList.toggle('open')">
-  <div class="row1"><div class="nm" onmouseenter="hoverChart('${r.code4}','${(r.name||'').replace(/'/g,'')}',this)" onmouseleave="unhoverChart()">${i+1}. ${r.name||''}<span class="cd">${r.code4} ・ ${r.sector||''}</span><button class="cbtn" onclick="showChart('${r.code4}','${(r.name||'').replace(/'/g,'')}',this,event)">📈</button></div>
+  <div class="row1"><div class="nm" onmouseenter="hoverChart('${r.code4}','${(r.name||'').replace(/'/g,'')}',this)" onmouseleave="unhoverChart()">${i+1}. ${r.name||''}<span class="cd">${r.code4} ・ ${r.sector||''}</span><button class="cbtn" onclick="showChart('${r.code4}','${(r.name||'').replace(/'/g,'')}',this,event)">📈</button><button class="cbtn wbtn ${isWatched(r.code4)?'on':''}" onclick="toggleWatch('${r.code4}',event)">★</button></div>
     <div class="score">${r.composite}</div></div>
   ${gradeChips(r.grades)}
   ${danger}
@@ -358,9 +382,48 @@ function renderArticles(){
   }
   document.getElementById('list').innerHTML=h;
 }
+function watchCard(code,i){
+  const u=(UNIVERSE||{})[code]||{};
+  const a=alertMap()[code];
+  const name=(u.n||code);
+  const chips=a?`<div class="chips">${a.flags.map(f=>`<span class="chip ${f.includes('急落')?'b':'g'}">⚡${f}</span>`).join('')}</div>`:'';
+  return `<div class="card">
+  <div class="row1"><div class="nm" onmouseenter="hoverChart('${code}','${name.replace(/'/g,'')}',this)" onmouseleave="unhoverChart()">${name}<span class="cd">${code} ・ ${u.s||''}</span><button class="cbtn" onclick="showChart('${code}','${name.replace(/'/g,'')}',this,event)">📈</button><button class="cbtn wbtn on" onclick="toggleWatch('${code}',event)">★</button></div>
+    <div class="score">${a&&a.chg!==undefined?(a.chg>=0?'+':'')+a.chg+'%':''}</div></div>
+  <div class="row2">
+    <span class="kv"><span class="l">株価</span> <b>${fmt(u.p)}</b></span>
+    <span class="kv"><span class="l">時価総額</span> <b>${yen(u.m)}</b></span>
+    <span class="kv"><span class="l">PER</span> <b>${fmt(u.per)}</b></span>
+    <span class="kv"><span class="l">PBR</span> <b>${fmt(u.pbr)}</b></span>
+    <span class="kv"><span class="l">利回り</span> <b>${fmt(u.y,'%')}</b></span>
+    <span class="kv"><span class="l">ROE</span> <b>${fmt(u.roe,'%')}</b></span>
+  </div>
+  ${chips}
+  <div class="links" style="margin-top:7px">
+    <a href="https://kabutan.jp/stock/?code=${code}" target="_blank" rel="noopener">株探</a>
+    <a href="https://www.buffett-code.com/company/${code}/" target="_blank" rel="noopener">バフェットコード</a>
+    <a href="https://www.tradingview.com/chart/?symbol=TSE%3A${code}" target="_blank" rel="noopener">チャート</a>
+  </div></div>`;
+}
+function renderWatch(){
+  document.getElementById('toolbar').style.display='none';
+  document.getElementById('note').textContent='各リストの銘柄カードの★を押すとここに追加されます(この端末に保存)。⚡は当日のイベント(開示・±5%・52週高値・ゴールデンクロス)。';
+  const l=watchList();
+  if(!l.length){document.getElementById('list').innerHTML='<div class="empty">まだウォッチ銘柄がありません。<br>スクリーニングの銘柄カードにある ★ をタップして追加してください。</div>';return;}
+  if(!UNIVERSE){
+    document.getElementById('list').innerHTML='<div class="empty">読み込み中…</div>';
+    fetch('data/universe.json?'+Date.now()).then(r=>r.ok?r.json():{}).then(u=>{UNIVERSE=u;if(view==='watch')render();}).catch(()=>{UNIVERSE={};if(view==='watch')render();});
+    return;
+  }
+  const am=alertMap();
+  const sorted=[...l].sort((a,b)=>(am[b]?1:0)-(am[a]?1:0));
+  document.getElementById('list').innerHTML=sorted.map(watchCard).join('')
+    +(ALERTS&&ALERTS.as_of?`<div class="note" style="padding:4px 6px">イベント判定基準日: ${ALERTS.as_of}</div>`:'');
+}
 function render(){
   document.querySelectorAll('.mi[data-v]').forEach(e=>e.classList.toggle('active',e.dataset.v===view));
   document.getElementById('vtitle').textContent=VT[view]||'ファンダ・ラボ';
+  if(view==='watch'){renderWatch();document.getElementById('count').textContent='';return;}
   if(view==='articles'){renderArticles();document.getElementById('count').textContent='';return;}
   document.getElementById('toolbar').style.display='';
   const q=document.getElementById('q').value.trim().toLowerCase();
@@ -397,6 +460,7 @@ fetch('data/analysis.json?'+Date.now()).then(r=>r.ok?r.json():null).then(a=>{ANA
 fetch('data/articles.json?'+Date.now()).then(r=>r.ok?r.json():null).then(a=>{ARTICLES=a;if(view==='articles')render();}).catch(()=>{});
 fetch('data/comments.json?'+Date.now()).then(r=>r.ok?r.json():null).then(c=>{COMMENTS=c;render();}).catch(()=>{});
 fetch('data/charts.json?'+Date.now()).then(r=>r.ok?r.json():null).then(c=>{CHARTS=c;}).catch(()=>{});
+fetch('data/alerts.json?'+Date.now()).then(r=>r.ok?r.json():null).then(a=>{ALERTS=a;updateBadge();if(view==='watch')render();}).catch(()=>{});
 document.getElementById('q').addEventListener('input',render);
 </script>
 </body>
