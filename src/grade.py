@@ -248,7 +248,7 @@ def build_analysis(df: pd.DataFrame, path="docs/data/analysis.json"):
         "generated_at": pd.Timestamp.now(tz="Asia/Tokyo").strftime("%Y-%m-%d %H:%M"),
         "note": "アークランド式(企業分析手順)の機械化パート。⑥事業素質は定性のため対象外。Aが1つでもあれば買材料(手順§5)。",
         "legend": ["①資産割安", "②収益割安", "③財務健全", "④収益性", "⑤成長性", "⑦株主還元"],
-        "items": items[:200],
+        "items": items[:50],
         "byCode": by_code,
     }
     with open(path, "w") as f:

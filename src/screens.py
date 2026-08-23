@@ -360,7 +360,7 @@ OUT_COLS = ["code", "code4", "name", "sector", "scale", "mkt", "price", "mcap_ok
             "eps_hist", "dps_hist", "sales_hist", "op_hist", "fy_end", "score"]
 
 
-def _records(df: pd.DataFrame, limit=80):
+def _records(df: pd.DataFrame, limit=30):
     if not len(df):
         return []
     cols = [c for c in OUT_COLS if c in df.columns]
