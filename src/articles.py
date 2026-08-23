@@ -139,7 +139,7 @@ def update(feeds_path="feeds.json", out_path="docs/data/articles.json"):
                 if g.get("date"):
                     fs[g["url"]]["date"] = g["date"]
         feeds_out.append({**{k: f[k] for k in ("id", "kind", "label", "desc", "home")},
-                          "auto": auto})
+                          "short": f.get("short", f["label"][:8]), "auto": auto})
         print(f"articles {f['id']}: fetched={len(items)} known={len(fs)} (auto={auto})",
               flush=True)
 
