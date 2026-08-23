@@ -55,9 +55,13 @@ header::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;
 @media(min-width:960px){
   #drawer{transform:none}
   main{margin-left:236px}
+  header{margin-left:236px}
   #menuBtn{display:none}
   #overlay{display:none!important}
 }
+.dbrand{display:flex;align-items:center;gap:9px;padding:4px 8px 12px;
+  border-bottom:1px solid var(--line);margin-bottom:6px}
+.dbrand .bword{font-size:15.5px}
 
 .toolbar{display:flex;gap:8px;padding:12px 14px 8px;align-items:center}
 .toolbar input{flex:1;padding:9px 14px;border:1px solid var(--line);border-radius:11px;
@@ -144,6 +148,10 @@ footer{color:var(--sub);font-size:11px;padding:0 18px 34px}
 <body>
 <div id="overlay" onclick="toggleMenu(false)"></div>
 <nav id="drawer">
+  <div class="dbrand">
+    <svg width="26" height="26" viewBox="0 0 30 30" aria-hidden="true" style="border-radius:7px"><defs><linearGradient id="lg2" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#1d5df2"/><stop offset="1" stop-color="#38bdf8"/></linearGradient></defs><rect width="30" height="30" rx="8" fill="url(#lg2)"/><polyline points="6,21 12,14.5 16,17.5 24,8" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="24" cy="8" r="2.2" fill="#fff"/></svg>
+    <span class="bword">FUNDA<span>LAB</span></span>
+  </div>
   <div class="dttl">スクリーニング</div>
   <button class="mi" data-v="niokutameo" onclick="go('niokutameo')">弐億貯男式</button>
   <button class="mi" data-v="kiyohara" onclick="go('kiyohara')">清原式</button>
