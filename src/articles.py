@@ -41,9 +41,25 @@ def _gnews(q: str) -> list[dict]:
             date = None
         if title and link:
             # Googleニュース経由のタイトルは「タイトル - 媒体名」形式
-            title = re.sub(r"\s+-\s+[^-]{2,25}$", "", title)
-            out.append({"title": title, "url": link, "date": date})
+            if " - " in title:
+                base, pub = title.rsplit(" - ", 1)
+                if len(pub) <= 25 and len(base.strip()) >= 4:
+                    title = base.strip()
+            if len(title.strip()) < 4:
+                continue
+            out.append({"title": title.strip(), "url": link, "date": date})
     return out
+
+
+def _date_from_url(url: str) -> str | None:
+    m = re.search(r"_(\d{2})(\d{2})(\d{2})\.html", url)
+    if m:
+        y, mo, d = m.groups()
+        return f"20{y}-{mo}-{d}"
+    m = re.search(r"/(20\d{2})[/-]?(\d{2})[/-]?(\d{2})(?:/|_|\.)", url)
+    if m:
+        return "-".join(m.groups())
+    return None
 
 
 def _robots_ok(url: str) -> bool:
@@ -67,6 +83,7 @@ def _static(url: str, path_prefix: str) -> list[dict]:
     try:
         r = requests.get(url, headers=UA, timeout=30)
         r.raise_for_status()
+        r.encoding = r.apparent_encoding or r.encoding
         html = r.text
     except Exception as e:
         print(f"static error {url}: {str(e)[:100]}", flush=True)
@@ -84,7 +101,7 @@ def _static(url: str, path_prefix: str) -> list[dict]:
         if len(text) < 8 or full in seen:
             continue
         seen.add(full)
-        out.append({"title": text[:120], "url": full, "date": None})
+        out.append({"title": text[:120], "url": full, "date": _date_from_url(full)})
     return out
 
 
@@ -117,6 +134,10 @@ def update(feeds_path="feeds.json", out_path="docs/data/articles.json"):
             if g["url"] not in fs:
                 fs[g["url"]] = {"title": g["title"], "date": g.get("date"),
                                 "first_seen": today}
+            else:  # タイトル・日付は最新の取得結果で上書き(文字化け修正等)
+                fs[g["url"]]["title"] = g["title"]
+                if g.get("date"):
+                    fs[g["url"]]["date"] = g["date"]
         feeds_out.append({**{k: f[k] for k in ("id", "kind", "label", "desc", "home")},
                           "auto": auto})
         print(f"articles {f['id']}: fetched={len(items)} known={len(fs)} (auto={auto})",
