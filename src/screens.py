@@ -372,6 +372,26 @@ def _records(df: pd.DataFrame, limit=80):
     return out
 
 
+def build_charts(prices: pd.DataFrame, codes5: set, path="docs/data/charts.json"):
+    """サイトのポップアップチャート用に、掲載銘柄の直近1年の終値系列を出力。"""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    px = prices[prices["Code"].isin(codes5)]
+    series = {}
+    for code, g in px.groupby("Code"):
+        g = g.sort_values("Date")
+        g = g[g["AdjC"].notna()].tail(250)
+        if len(g) < 20:
+            continue
+        code4 = code[:-1] if len(code) == 5 and code.endswith("0") else code
+        series[code4] = {
+            "c": [round(float(x), 1) for x in g["AdjC"]],
+            "s": str(g["Date"].iloc[0]), "e": str(g["Date"].iloc[-1]),
+        }
+    with open(path, "w") as f:
+        json.dump({"series": series}, f, ensure_ascii=False)
+    print(f"charts: {len(series)} codes", flush=True)
+
+
 def build_output(df: pd.DataFrame, path="docs/data/latest.json"):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     n = screen_niokutameo(df)

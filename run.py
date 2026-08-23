@@ -39,8 +39,15 @@ def build():
     print(f"metrics: {len(df)} codes", flush=True)
     ed = edinet.latest_by_code()
     df = grade.merge_edinet(df, ed)
-    screens.build_output(df)
-    grade.build_analysis(df)
+    out1 = screens.build_output(df)
+    out2 = grade.build_analysis(df)
+    shown4 = set()
+    for s in out1["screens"].values():
+        shown4 |= {it["code4"] for it in s["items"]}
+    shown4 |= {it["code4"] for it in out2["items"]}
+    code_map = dict(zip(df["code4"], df["code"]))
+    codes5 = {code_map[c] for c in shown4 if c in code_map}
+    screens.build_charts(prices, codes5)
 
 
 def main():

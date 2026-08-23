@@ -113,6 +113,17 @@ footer{color:var(--sub);font-size:11px;padding:0 18px 34px}
 .newb{display:inline-block;background:linear-gradient(90deg,var(--accent),var(--accent2));
   color:#fff;font-size:9.5px;font-weight:700;border-radius:5px;
   padding:0 5px;margin-left:6px;vertical-align:1px}
+/* chart popup */
+.cbtn{border:1px solid var(--line);background:var(--chip);border-radius:8px;font-size:12px;
+  padding:2px 7px;cursor:pointer;margin-left:6px;vertical-align:1px}
+#chartpop{position:fixed;z-index:60;width:320px;max-width:92vw;background:var(--card);
+  border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 40px rgba(8,20,40,.25);
+  padding:12px;display:none}
+#chartpop.show{display:block}
+#chartpop .cph{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;
+  font-weight:700;margin-bottom:4px}
+#chartpop .cpd{color:var(--sub);font-size:10.5px;font-weight:400}
+#chartpop .cpx{border:0;background:none;color:var(--sub);font-size:15px;cursor:pointer;padding:0 2px}
 </style>
 </head>
 <body>
@@ -143,8 +154,56 @@ footer{color:var(--sub);font-size:11px;padding:0 18px 34px}
 <footer>出所: J-Quants (Standard)・EDINET / 毎営業日 20:30台に自動更新。投資判断は自己責任で。<br>
 PERの「予」は会社予想EPS・「実」は直近実績EPSベース。</footer>
 </main>
+<div id="chartpop"></div>
 <script>
-let DATA=null, ANALYSIS=null, ARTICLES=null, COMMENTS=null, view='niokutameo';
+let DATA=null, ANALYSIS=null, ARTICLES=null, COMMENTS=null, CHARTS=null, view='niokutameo';
+let hoverTimer=null;
+function svgChart(c){
+  const W=294,H=130,P=4;
+  const mn=Math.min(...c),mx=Math.max(...c),rg=(mx-mn)||1;
+  const X=i=>P+(W-2*P)*i/(c.length-1), Y=v=>H-P-(H-2*P)*(v-mn)/rg;
+  const pts=c.map((v,i)=>`${X(i).toFixed(1)},${Y(v).toFixed(1)}`);
+  const ma=[];for(let i=0;i<c.length;i++){if(i>=24){let s=0;for(let j=i-24;j<=i;j++)s+=c[j];ma.push(`${X(i).toFixed(1)},${Y(s/25).toFixed(1)}`)}}
+  const up=c[c.length-1]>=c[0];
+  const col=up?'var(--accent)':'var(--bad)';
+  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+    <defs><linearGradient id="gf" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="${up?'#1d5df2':'#dc2626'}" stop-opacity=".18"/>
+      <stop offset="1" stop-color="${up?'#1d5df2':'#dc2626'}" stop-opacity="0"/></linearGradient></defs>
+    <polygon points="${P},${H-P} ${pts.join(' ')} ${W-P},${H-P}" fill="url(#gf)"/>
+    <polyline points="${pts.join(' ')}" fill="none" stroke="${col}" stroke-width="1.8"/>
+    ${ma.length?`<polyline points="${ma.join(' ')}" fill="none" stroke="var(--warn)" stroke-width="1" opacity=".8"/>`:''}
+  </svg>`;
+}
+function showChart(code4,name,anchor,ev){
+  if(ev)ev.stopPropagation();
+  const pop=document.getElementById('chartpop');
+  const s=CHARTS&&CHARTS.series&&CHARTS.series[code4];
+  if(!s){pop.classList.remove('show');return;}
+  const c=s.c,chg=((c[c.length-1]/c[0]-1)*100).toFixed(1);
+  pop.innerHTML=`<div class="cph"><span>${name} <span class="cpd">${code4}</span></span>
+    <span><span class="${chg>=0?'pos':'neg'}">${chg>=0?'+':''}${chg}%</span>
+    <span class="cpd"> 1年</span> <button class="cpx" onclick="hideChart()">✕</button></span></div>
+    ${svgChart(c)}
+    <div class="cpd" style="display:flex;justify-content:space-between"><span>${s.s}</span><span>終値 ${c[c.length-1].toLocaleString()}円 <span style="color:var(--warn)">─</span>25MA</span><span>${s.e}</span></div>`;
+  const r=anchor.getBoundingClientRect();
+  const w=Math.min(320,window.innerWidth*0.92);
+  let x=Math.min(r.left,window.innerWidth-w-8), y=r.bottom+8;
+  if(y+190>window.innerHeight)y=Math.max(8,r.top-190);
+  pop.style.left=Math.max(8,x)+'px'; pop.style.top=y+'px';
+  pop.classList.add('show');
+}
+function hideChart(){document.getElementById('chartpop').classList.remove('show');}
+function hoverChart(code4,name,el){
+  if(!window.matchMedia('(hover: hover)').matches)return;
+  clearTimeout(hoverTimer);
+  hoverTimer=setTimeout(()=>showChart(code4,name,el),180);
+}
+function unhoverChart(){clearTimeout(hoverTimer);hoverTimer=setTimeout(hideChart,250);}
+document.addEventListener('click',e=>{
+  const pop=document.getElementById('chartpop');
+  if(pop.classList.contains('show')&&!pop.contains(e.target)&&!e.target.classList.contains('cbtn'))hideChart();
+});
 const VT={niokutameo:'弐億貯男式',kiyohara:'清原式',dividend:'配当バリュー成長',
           analysis:'A〜E分析',articles:'記事'};
 const fmt=(v,suf='')=> (v===null||v===undefined)?'—':(v+suf);
@@ -185,7 +244,7 @@ function card(r,i){
   const kab=`https://kabutan.jp/stock/?code=${r.code4}`;
   const buf=`https://www.buffett-code.com/company/${r.code4}/`;
   return `<div class="card" onclick="if(event.target.tagName!=='A')this.classList.toggle('open')">
-  <div class="row1"><div class="nm">${i+1}. ${r.name||''}<span class="cd">${r.code4} ・ ${r.sector||''}</span></div>
+  <div class="row1"><div class="nm" onmouseenter="hoverChart('${r.code4}','${(r.name||'').replace(/'/g,'')}',this)" onmouseleave="unhoverChart()">${i+1}. ${r.name||''}<span class="cd">${r.code4} ・ ${r.sector||''}</span><button class="cbtn" onclick="showChart('${r.code4}','${(r.name||'').replace(/'/g,'')}',this,event)">📈</button></div>
     <div class="score">${fmt(r.score)}</div></div>
   <div class="row2">
     <span class="kv"><span class="l">株価</span> <b>${fmt(r.price)}</b></span>
@@ -224,7 +283,7 @@ function analysisCard(r,i){
   const buf=`https://www.buffett-code.com/company/${r.code4}/`;
   const danger=r.danger&&r.danger.length?`<div class="chips">${r.danger.map(d=>`<span class="chip b">⚠${d}</span>`).join('')}</div>`:'';
   return `<div class="card" onclick="if(event.target.tagName!=='A')this.classList.toggle('open')">
-  <div class="row1"><div class="nm">${i+1}. ${r.name||''}<span class="cd">${r.code4} ・ ${r.sector||''}</span></div>
+  <div class="row1"><div class="nm" onmouseenter="hoverChart('${r.code4}','${(r.name||'').replace(/'/g,'')}',this)" onmouseleave="unhoverChart()">${i+1}. ${r.name||''}<span class="cd">${r.code4} ・ ${r.sector||''}</span><button class="cbtn" onclick="showChart('${r.code4}','${(r.name||'').replace(/'/g,'')}',this,event)">📈</button></div>
     <div class="score">${r.composite}</div></div>
   ${gradeChips(r.grades)}
   ${danger}
@@ -306,6 +365,7 @@ fetch('data/latest.json?'+Date.now()).then(r=>{if(!r.ok)throw 0;return r.json()}
 fetch('data/analysis.json?'+Date.now()).then(r=>r.ok?r.json():null).then(a=>{ANALYSIS=a;if(view==='analysis')render();}).catch(()=>{});
 fetch('data/articles.json?'+Date.now()).then(r=>r.ok?r.json():null).then(a=>{ARTICLES=a;if(view==='articles')render();}).catch(()=>{});
 fetch('data/comments.json?'+Date.now()).then(r=>r.ok?r.json():null).then(c=>{COMMENTS=c;render();}).catch(()=>{});
+fetch('data/charts.json?'+Date.now()).then(r=>r.ok?r.json():null).then(c=>{CHARTS=c;}).catch(()=>{});
 document.getElementById('q').addEventListener('input',render);
 </script>
 </body>
