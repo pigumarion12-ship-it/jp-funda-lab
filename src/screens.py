@@ -379,12 +379,17 @@ def build_charts(prices: pd.DataFrame, codes5: set, path="docs/data/charts.json"
     series = {}
     for code, g in px.groupby("Code"):
         g = g.sort_values("Date")
-        g = g[g["AdjC"].notna()].tail(250)
+        g = g[g["AdjC"].notna()].tail(380)   # 200日線を6ヶ月窓で引くため長めに保持
         if len(g) < 20:
             continue
         code4 = code[:-1] if len(code) == 5 and code.endswith("0") else code
+        tail = g.tail(130)  # ローソク足表示分
+        cc = tail["AdjC"]
         series[code4] = {
             "c": [round(float(x), 1) for x in g["AdjC"]],
+            "o": [round(float(x), 1) for x in tail["AdjO"].fillna(cc)],
+            "h": [round(float(x), 1) for x in tail["AdjH"].fillna(cc)],
+            "l": [round(float(x), 1) for x in tail["AdjL"].fillna(cc)],
             "s": str(g["Date"].iloc[0]), "e": str(g["Date"].iloc[-1]),
         }
     with open(path, "w") as f:
