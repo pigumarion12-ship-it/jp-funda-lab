@@ -20,7 +20,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install deps
-        run: pip install -q requests pandas
+        run: pip install -q requests pandas pyarrow
       - name: Update articles
         run: |
           set -o pipefail

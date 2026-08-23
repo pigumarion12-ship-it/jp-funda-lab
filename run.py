@@ -10,10 +10,10 @@ import os
 import sys
 
 from src import data, screens, edinet, grade, articles
-from src.jq import get_client
 
 
 def update():
+    from src.jq import get_client
     cli = get_client()
     listed = data.update_listed(cli)
     print(f"listed: {len(listed)}", flush=True)
