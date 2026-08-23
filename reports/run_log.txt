@@ -1,0 +1,52 @@
+listed: 4444
+prices: 368 days to fetch
+prices 0/368 2025-02-19 rows=4406
+prices 25/368 2025-03-28 rows=4410
+prices 50/368 2025-05-07 rows=4415
+prices 75/368 2025-06-11 rows=4406
+prices 100/368 2025-07-16 rows=4411
+prices 125/368 2025-08-22 rows=4414
+prices 150/368 2025-09-30 rows=4403
+prices 175/368 2025-11-06 rows=4417
+prices 200/368 2025-12-12 rows=4427
+prices 225/368 2026-01-22 rows=4435
+prices 250/368 2026-03-02 rows=4439
+prices 275/368 2026-04-07 rows=4451
+prices 300/368 2026-05-18 rows=4446
+prices 325/368 2026-06-22 rows=4443
+prices 350/368 2026-07-28 rows=4442
+prices: 1628818
+stmts: 1345 days to fetch
+stmts 0/1345 2021-02-22 rows=12
+stmts 50/1345 2021-05-10 rows=262
+stmts 100/1345 2021-07-19 rows=9
+stmts 150/1345 2021-10-04 rows=24
+stmts 200/1345 2021-12-15 rows=43
+stmts 250/1345 2022-03-02 rows=8
+stmts 300/1345 2022-05-18 rows=16
+stmts 350/1345 2022-07-28 rows=169
+stmts 400/1345 2022-10-12 rows=67
+stmts 450/1345 2022-12-23 rows=9
+stmts 500/1345 2023-03-09 rows=22
+stmts 550/1345 2023-05-24 rows=12
+stmts 600/1345 2023-08-03 rows=127
+stmts 650/1345 2023-10-17 rows=12
+stmts 700/1345 2023-12-28 rows=15
+stmts 750/1345 2024-03-15 rows=103
+stmts 800/1345 2024-05-30 rows=9
+stmts 850/1345 2024-08-09 rows=921
+stmts 900/1345 2024-10-24 rows=29
+stmts 950/1345 2025-01-09 rows=39
+stmts 1000/1345 2025-03-26 rows=18
+stmts 1050/1345 2025-06-09 rows=22
+stmts 1100/1345 2025-08-20 rows=4
+stmts 1150/1345 2025-11-04 rows=90
+stmts 1200/1345 2026-01-20 rows=5
+stmts 1250/1345 2026-04-03 rows=20
+stmts 1300/1345 2026-06-18 rows=5
+stmts: 104661
+dividends: 1345 days to fetch
+dividends取得スキップ: 403 for url: https://api.jquants.com/v2/fins/dividend?date=20210222 body: This API is not available on your subscription.  If you want more data, please check other plans:https://jpx-jquants.com/#data
+dividends: 0
+metrics: 3903 codes
+screens: 弐億貯男式=146 清原式=133 配当=0 universe=3903
