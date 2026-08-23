@@ -49,6 +49,13 @@ h1{font-size:18px;margin:0}
 .links a{color:var(--accent);text-decoration:none;margin-right:12px}
 .empty{color:var(--sub);text-align:center;padding:40px 16px}
 .pos{color:var(--good)} .neg{color:var(--bad)}
+.grades{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
+.gr{display:inline-flex;flex-direction:column;align-items:center;border:1px solid var(--line);
+  border-radius:8px;padding:3px 6px;min-width:44px}
+.gr .gl{font-size:9.5px;color:var(--sub)}
+.gr .gv{font-weight:700;font-size:14px}
+.gA{color:var(--good)} .gB{color:var(--accent)} .gC{color:var(--sub)}
+.gD{color:var(--warn)} .gE{color:var(--bad)}
 footer{color:var(--sub);font-size:11px;padding:0 16px 30px}
 </style>
 </head>
@@ -67,7 +74,7 @@ footer{color:var(--sub);font-size:11px;padding:0 16px 30px}
 <footer>出所: J-Quants (Standard) / 毎営業日 20:30台に自動更新。投資判断は自己責任で。<br>
 PERの「予」は会社予想EPS・「実」は直近実績EPSベース。時価総額はEPSとNPからの推定を含む。</footer>
 <script>
-let DATA=null, tab='niokutameo';
+let DATA=null, ANALYSIS=null, tab='niokutameo';
 const fmt=(v,suf='')=> (v===null||v===undefined)?'—':(v+suf);
 const yen=(v)=> (v===null||v===undefined)?'—':(v>=10000? (v/10000).toFixed(1)+'兆':v.toLocaleString()+'億');
 
@@ -98,6 +105,7 @@ function card(r,i){
     <span class="kv"><span class="l">PBR</span> <b>${fmt(r.pbr)}</b></span>
     <span class="kv"><span class="l">利回り</span> <b>${fmt(r.yield,'%')}</b></span>
     <span class="kv"><span class="l">ROE</span> <b>${fmt(r.roe,'%')}</b></span>
+    ${r.netcash_ratio!==null&&r.netcash_ratio!==undefined?`<span class="kv"><span class="l">NC比率</span> <b>${r.netcash_ratio}%</b></span>`:''}
   </div>
   <div class="chips">${chips(r)}</div>
   <div class="detail">
@@ -113,10 +121,48 @@ function card(r,i){
     </div>
   </div></div>`;
 }
+const GLABELS=['①資産','②収益割安','③財務','④収益性','⑤成長','⑦還元'];
+function gradeChips(g){
+  const keys=['asset','earnings','health','profit','growth','payout'];
+  return '<div class="grades">'+keys.map((k,i)=>{
+    const v=g[k]||'—';
+    return `<span class="gr"><span class="gl">${GLABELS[i]}</span><span class="gv g${v}">${v}</span></span>`;
+  }).join('')+'</div>';
+}
+function analysisCard(r,i){
+  const kab=`https://kabutan.jp/stock/?code=${r.code4}`;
+  const buf=`https://www.buffett-code.com/company/${r.code4}/`;
+  const danger=r.danger&&r.danger.length?`<div class="chips">${r.danger.map(d=>`<span class="chip b">⚠${d}</span>`).join('')}</div>`:'';
+  return `<div class="card" onclick="this.classList.toggle('open')">
+  <div class="row1"><div class="nm">${i+1}. ${r.name||''}<span class="cd">${r.code4} ・ ${r.sector||''}</span></div>
+    <div class="score">${r.composite}</div></div>
+  ${gradeChips(r.grades)}
+  ${danger}
+  <div class="detail">
+    <div>時価総額 <b>${yen(r.mcap_oku)}</b> ・ PER <b>${fmt(r.per)}</b> ・ PBR <b>${fmt(r.pbr)}</b> ・ 利回り <b>${fmt(r.yield,'%')}</b></div>
+    <div>清算価値 <b>${yen(r.seisan_oku)}</b>${r.seisan_oku!==null&&r.mcap_oku?(r.mcap_oku<r.seisan_oku?' <span class="pos">(時価総額が清算価値を下回る)</span>':''):''} ・ NC比率 <b>${fmt(r.netcash_ratio,'%')}</b></div>
+    <div>DCFレンジ: 弱気 <b>${yen(r.dcf_weak_oku)}</b> 〜 強気 <b>${yen(r.dcf_strong_oku)}</b> (対 時価総額 ${yen(r.mcap_oku)})</div>
+    <div class="hist">EDINET期末: ${r.edinet_end||'—'} ・ Aが1つでもあれば買材料(手順§5)。⑥事業素質は定性のため未採点</div>
+    <div class="links" style="margin-top:6px">
+      <a href="${kab}" target="_blank" rel="noopener">株探</a>
+      <a href="${buf}" target="_blank" rel="noopener">バフェットコード</a>
+    </div>
+  </div></div>`;
+}
 function render(){
   if(!DATA)return;
-  const s=DATA.screens[tab];
   const q=document.getElementById('q').value.trim().toLowerCase();
+  if(tab==='analysis'){
+    if(!ANALYSIS){document.getElementById('list').innerHTML='<div class="empty">A〜E分析データはまだありません(EDINET初回取得後に表示されます)</div>';document.getElementById('count').textContent='';return;}
+    let items=ANALYSIS.items;
+    if(q)items=items.filter(r=>((r.name||'')+(r.code4||'')+(r.sector||'')).toLowerCase().includes(q));
+    document.getElementById('count').textContent=`${items.length}件`;
+    document.getElementById('note').textContent=ANALYSIS.note||'';
+    document.getElementById('list').innerHTML=
+      items.length?items.map(analysisCard).join(''):'<div class="empty">該当なし</div>';
+    return;
+  }
+  const s=DATA.screens[tab];
   let items=s.items;
   if(q)items=items.filter(r=>((r.name||'')+(r.code4||'')+(r.sector||'')).toLowerCase().includes(q));
   document.getElementById('count').textContent=`${items.length}/${s.count}件`;
@@ -135,8 +181,10 @@ fetch('data/latest.json?'+Date.now()).then(r=>{
     `データ基準日 ${d.as_of||'—'} ・ 更新 ${d.generated_at||'—'} ・ 対象 ${d.universe}銘柄`;
   const tabs=document.getElementById('tabs');
   tabs.innerHTML=Object.entries(d.screens).map(([k,v])=>
-    `<button class="tab" data-t="${k}" onclick="setTab('${k}')">${v.label} (${v.count})</button>`).join('');
+    `<button class="tab" data-t="${k}" onclick="setTab('${k}')">${v.label} (${v.count})</button>`).join('')
+    +`<button class="tab" data-t="analysis" onclick="setTab('analysis')">A〜E分析</button>`;
   setTab('niokutameo');
+  fetch('data/analysis.json?'+Date.now()).then(r=>r.ok?r.json():null).then(a=>{ANALYSIS=a;}).catch(()=>{});
 }).catch(()=>{
   document.getElementById('asof').textContent='初回データ生成待ち';
   document.getElementById('list').innerHTML=

@@ -4,9 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "update / build / all"
+        description: "update / edinet / build / all"
         required: false
         default: "all"
+      backfill_days:
+        description: "EDINET取得日数 (mode=edinet/all時。既定10)"
+        required: false
+        default: ""
   schedule:
     # 平日 20:30 JST = 11:30 UTC (月-金)
     - cron: "30 11 * * 1-5"
@@ -42,11 +46,17 @@ jobs:
       - name: Update & build
         env:
           JQUANTS_API_KEY: ${{ secrets.JQUANTS_API_KEY }}
+          EDINET_API_KEY: ${{ secrets.EDINET_API_KEY }}
           MODE: ${{ inputs.mode }}
+          BACKFILL_DAYS: ${{ inputs.backfill_days }}
         run: |
           mkdir -p reports
           set -o pipefail
-          python run.py "${MODE:-all}" 2>&1 | tee reports/run_log.txt
+          M="${MODE:-all}"
+          python run.py "$M" 2>&1 | tee reports/run_log.txt
+          if [ "$M" = "edinet" ]; then
+            python run.py build 2>&1 | tee -a reports/run_log.txt
+          fi
 
       - name: Commit outputs
         if: always()
