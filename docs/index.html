@@ -185,12 +185,18 @@ PERの「予」は会社予想EPS・「実」は直近実績EPSベース。</foo
 <script>
 let DATA=null, ANALYSIS=null, ARTICLES=null, COMMENTS=null, CHARTS=null, view='niokutameo';
 let hoverTimer=null;
-function svgChart(c){
+function svgChart(cAll,N){
   const W=294,H=130,P=4;
-  const mn=Math.min(...c),mx=Math.max(...c),rg=(mx-mn)||1;
+  const off=Math.max(0,cAll.length-N);
+  const c=cAll.slice(-N);
+  // 25MAは全期間データから計算して6ヶ月窓に合わせる
+  const maV=c.map((_,i)=>{const gi=off+i;if(gi<24)return null;
+    let s=0;for(let j=gi-24;j<=gi;j++)s+=cAll[j];return s/25;});
+  const vals=c.concat(maV.filter(v=>v!==null));
+  const mn=Math.min(...vals),mx=Math.max(...vals),rg=(mx-mn)||1;
   const X=i=>P+(W-2*P)*i/(c.length-1), Y=v=>H-P-(H-2*P)*(v-mn)/rg;
   const pts=c.map((v,i)=>`${X(i).toFixed(1)},${Y(v).toFixed(1)}`);
-  const ma=[];for(let i=0;i<c.length;i++){if(i>=24){let s=0;for(let j=i-24;j<=i;j++)s+=c[j];ma.push(`${X(i).toFixed(1)},${Y(s/25).toFixed(1)}`)}}
+  const ma=[];maV.forEach((v,i)=>{if(v!==null)ma.push(`${X(i).toFixed(1)},${Y(v).toFixed(1)}`)});
   const up=c[c.length-1]>=c[0];
   const col=up?'var(--accent)':'var(--bad)';
   return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
@@ -207,12 +213,13 @@ function showChart(code4,name,anchor,ev){
   const pop=document.getElementById('chartpop');
   const s=CHARTS&&CHARTS.series&&CHARTS.series[code4];
   if(!s){pop.classList.remove('show');return;}
-  const c=s.c,chg=((c[c.length-1]/c[0]-1)*100).toFixed(1);
+  const N=Math.min(122,s.c.length);           // 約6ヶ月(営業日)
+  const c=s.c.slice(-N),chg=((c[c.length-1]/c[0]-1)*100).toFixed(1);
   pop.innerHTML=`<div class="cph"><span>${name} <span class="cpd">${code4}</span></span>
     <span><span class="${chg>=0?'pos':'neg'}">${chg>=0?'+':''}${chg}%</span>
-    <span class="cpd"> 1年</span> <button class="cpx" onclick="hideChart()">✕</button></span></div>
-    ${svgChart(c)}
-    <div class="cpd" style="display:flex;justify-content:space-between"><span>${s.s}</span><span>終値 ${c[c.length-1].toLocaleString()}円 <span style="color:var(--warn)">─</span>25MA</span><span>${s.e}</span></div>`;
+    <span class="cpd"> 6ヶ月</span> <button class="cpx" onclick="hideChart()">✕</button></span></div>
+    ${svgChart(s.c,N)}
+    <div class="cpd" style="display:flex;justify-content:space-between"><span>6ヶ月前</span><span>終値 ${c[c.length-1].toLocaleString()}円 <span style="color:var(--warn)">─</span>25MA</span><span>${s.e}</span></div>`;
   const r=anchor.getBoundingClientRect();
   const w=Math.min(320,window.innerWidth*0.92);
   let x=Math.min(r.left,window.innerWidth-w-8), y=r.bottom+8;
