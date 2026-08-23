@@ -1,38 +1,7 @@
-edinet: 307 days to fetch
-edinet 1/307 2025-06-19 docs=114 total_new=114
-edinet 11/307 2025-07-03 docs=2 total_new=2082
-edinet 21/307 2025-07-17 docs=4 total_new=2084
-edinet 31/307 2025-07-31 docs=11 total_new=2125
-edinet 41/307 2025-08-14 docs=159 total_new=2128
-edinet 51/307 2025-08-28 docs=10 total_new=2205
-edinet 61/307 2025-09-11 docs=6 total_new=2222
-edinet 71/307 2025-09-25 docs=45 total_new=2331
-edinet 81/307 2025-10-09 docs=7 total_new=2389
-edinet 91/307 2025-10-23 docs=9 total_new=2412
-edinet 101/307 2025-11-06 docs=55 total_new=2449
-edinet 111/307 2025-11-20 docs=22 total_new=2466
-edinet 121/307 2025-12-04 docs=4 total_new=2551
-edinet 131/307 2025-12-18 docs=25 total_new=2621
-edinet 141/307 2026-01-01 docs=0 total_new=2748
-edinet 151/307 2026-01-15 docs=2 total_new=2749
-edinet 161/307 2026-01-29 docs=11 total_new=2809
-edinet 171/307 2026-02-12 docs=34 total_new=2816
-edinet 181/307 2026-02-26 docs=12 total_new=2878
-edinet 191/307 2026-03-12 docs=7 total_new=2889
-edinet 201/307 2026-03-26 docs=119 total_new=3299
-edinet 211/307 2026-04-09 docs=2 total_new=3429
-edinet 221/307 2026-04-23 docs=12 total_new=3466
-edinet 231/307 2026-05-07 docs=1 total_new=3495
-edinet 241/307 2026-05-21 docs=12 total_new=3542
-edinet 251/307 2026-06-04 docs=0 total_new=3710
-edinet 261/307 2026-06-18 docs=133 total_new=4109
-edinet 271/307 2026-07-02 docs=1 total_new=5904
-edinet 281/307 2026-07-16 docs=1 total_new=5906
-edinet 291/307 2026-07-30 docs=4 total_new=5950
-edinet 301/307 2026-08-13 docs=79 total_new=5954
-edinet 307/307 2026-08-21 docs=6 total_new=5971
-edinet_fin: 5971 docs
 metrics: 3693 codes
 edinet coverage: codes=3913 {'cash': 3912, 'cur_assets': 3856, 'liabilities': 3913, 'inv_sec': 3394, 'borrowings': 3913, 'inventories': 2740}
 screens: 弐億貯男式=112 清原式=527 配当=586 universe=3693
 analysis: graded=3690 edinet_matched=3623
+charts: 377 codes
+universe: 3693 codes
+alerts: 206 codes with events
