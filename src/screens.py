@@ -1,11 +1,13 @@
 """3つのスクリーニング + 銘柄別指標計算.
 
 タブ1: 弐億貯男式 (割安グロース)
-タブ2: 清原式 (ネットキャッシュ系) ※フェーズ1はEqAR/PBRによる暫定版
+タブ2: 清原式 (ネットキャッシュ系) ※フェーズ1はCashEq/PBRによる簡易版、EDINETで本計算へ
 タブ3: 配当バリュー成長 (辻さん基準)
 
-V2カラム名が未確定の項目は候補リストで防御的に解決し、
-build時に reports/schema_dump.txt へ実カラムを出力して確認する。
+V2 fin_summary 実カラム (2026-08 実測):
+  実績: Sales OP OdP NP EPS TA Eq EqAR BPS CFO CFI CFF CashEq DivAnn PayoutRatioAnn
+  予想: FSales FOP FNP FEPS FDivAnn FPayoutRatioAnn (来期: NxF*)
+  株式: ShOutFY(自己株含む発行済) TrShFY(自己株) AvgSh(期中平均)
 """
 import json
 import os
@@ -14,43 +16,8 @@ import pandas as pd
 
 OKU = 1e8  # 億円
 
-# ---- カラム名の防御的解決 ---------------------------------------------------
 
-CAND = {
-    "sales": ["Sales"],
-    "op": ["OP"],
-    "np": ["NP"],
-    "eps": ["EPS"],
-    "eq": ["Eq"],
-    "ta": ["TA"],
-    "eqar": ["EqAR"],
-    "cfo": ["CFO"],
-    # 予想系 (実データで要確認)
-    "f_sales": ["FcstSales", "ForecastSales", "NextYrFcstSales"],
-    "f_op": ["FcstOP", "ForecastOP", "NextYrFcstOP"],
-    "f_np": ["FcstNP", "ForecastNP", "NextYrFcstNP"],
-    "f_eps": ["FcstEPS", "ForecastEPS", "NextYrFcstEPS"],
-    # 配当系 (実データで要確認)
-    "dps": ["DPSAnn", "ResultDPSAnn", "DPS", "ResultDividendPerShareAnnual"],
-    "f_dps": ["FcstDPSAnn", "ForecastDPSAnn", "FcstDPS",
-              "ForecastDividendPerShareAnnual"],
-    # 発行済株式数 (実データで要確認)
-    "shares": ["IssuedShares", "NumShares", "SharesOutstandingFY",
-               "NumberOfIssuedAndOutstandingSharesAtTheEndOfFiscalYearIncludingTreasuryStock"],
-}
-
-
-def col(df: pd.DataFrame, key: str):
-    for c in CAND.get(key, []):
-        if c in df.columns:
-            return c
-    return None
-
-
-def num(row, c):
-    if c is None:
-        return None
-    v = row.get(c)
+def _num(v):
     try:
         v = float(v)
     except (TypeError, ValueError):
@@ -58,70 +25,50 @@ def num(row, c):
     return v if np.isfinite(v) else None
 
 
+def _pct(v):
+    """比率が0-1スケールなら%へ。"""
+    v = _num(v)
+    if v is None:
+        return None
+    return v * 100 if abs(v) <= 1.5 else v
+
+
 def dump_schema(stmts, listed, divs, prices, path="reports/schema_dump.txt"):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w") as f:
-        for name, df in [("stmts", stmts), ("listed", listed),
-                         ("dividends", divs), ("prices", prices)]:
+        for name, df in [("stmts", stmts), ("listed", listed), ("prices", prices)]:
             f.write(f"== {name} ({len(df)} rows) ==\n")
-            f.write(", ".join(map(str, df.columns)) + "\n")
-            if len(df):
-                sample = df[df["Code"] == "72030"] if "Code" in df.columns else df
-                if not len(sample):
-                    sample = df
-                f.write(sample.tail(3).to_string() + "\n")
-            f.write("\n")
-        if len(stmts):
-            for c in ("DocType", "CurPerType"):
-                if c in stmts.columns:
-                    f.write(f"stmts.{c} values: {stmts[c].astype(str).value_counts().head(30).to_dict()}\n")
+            f.write(", ".join(map(str, df.columns)) + "\n\n")
 
 
 # ---- 銘柄別メトリクス --------------------------------------------------------
 
 def _fy_rows(stmts: pd.DataFrame) -> pd.DataFrame:
-    """通期(FY)実績のみ・銘柄ごと期末昇順。予想/REIT/ETFは除外。"""
+    """通期(FY)実績のみ・銘柄ごと期末昇順。REIT除外・連結優先。"""
     df = stmts[stmts["CurPerType"].astype(str) == "FY"].copy()
-    if "DocType" in df.columns:
-        df = df[~df["DocType"].astype(str).str.contains("Forecast|REIT|ETF", na=False)]
-    df = df.sort_values(["Code", "CurPerEn", "DiscDate"])
+    df = df[df["DocType"].astype(str).str.contains("FinancialStatements", na=False)]
+    df = df[~df["DocType"].astype(str).str.contains("REIT", na=False)]
+    df["_cons"] = (~df["DocType"].astype(str).str.contains("NonConsolidated")).astype(int)
+    # 同一期末は 開示日→連結優先 で最後を採用
+    df = df.sort_values(["Code", "CurPerEn", "DiscDate", "_cons"])
     df = df.drop_duplicates(subset=["Code", "CurPerEn"], keep="last")
     return df
 
 
-def _forecast_row(grp_all: pd.DataFrame):
-    """その銘柄の最新開示行から今期予想を拾う。
-    1) Fcst系カラムがあれば最新行の値
-    2) DocTypeにForecastを含む行があればその実数カラム
-    """
-    if not len(grp_all):
-        return {}
-    latest = grp_all.sort_values("DiscDate").iloc[-1]
+FC_COLS = ["FSales", "FOP", "FNP", "FEPS", "FDivAnn", "FPayoutRatioAnn"]
+
+
+def _latest_forecast(grp_all: pd.DataFrame) -> dict:
+    """最新開示から今期予想を拾う (各項目ごとに直近の非欠損)。"""
     out = {}
-    for k in ("f_sales", "f_op", "f_np", "f_eps", "f_dps"):
-        c = col(grp_all, k)
-        if c is not None:
-            # 最新行が欠損なら遡って直近の非欠損を拾う
-            s = pd.to_numeric(grp_all.sort_values("DiscDate")[c], errors="coerce").dropna()
+    g = grp_all.sort_values(["DiscDate", "DiscTime"] if "DiscTime" in grp_all.columns
+                            else "DiscDate")
+    for c in FC_COLS:
+        if c in g.columns:
+            s = pd.to_numeric(g[c], errors="coerce").dropna()
             if len(s):
-                out[k] = float(s.iloc[-1])
-    if not out and "DocType" in grp_all.columns:
-        fc = grp_all[grp_all["DocType"].astype(str).str.contains("Forecast", na=False)]
-        if len(fc):
-            r = fc.sort_values("DiscDate").iloc[-1]
-            for k, base in [("f_sales", "sales"), ("f_op", "op"),
-                            ("f_np", "np"), ("f_eps", "eps")]:
-                v = num(r, col(grp_all, base))
-                if v is not None:
-                    out[k] = v
+                out[c] = float(s.iloc[-1])
     return out
-
-
-def _series(grp: pd.DataFrame, key: str) -> pd.Series:
-    c = col(grp, key)
-    if c is None:
-        return pd.Series(dtype=float)
-    return pd.to_numeric(grp[c], errors="coerce")
 
 
 def _cagr(s: pd.Series) -> float | None:
@@ -136,30 +83,7 @@ def _cagr(s: pd.Series) -> float | None:
         return None
 
 
-def _div_metrics(div_one: pd.DataFrame, fy_ends: list) -> dict:
-    """配当キャッシュから年間DPS系列を推定 (カラム未確定のため防御的)。"""
-    out = {"dps_hist": None, "div_no_cut": None, "div_up": None}
-    if div_one is None or not len(div_one):
-        return out
-    # 年間配当らしきカラムを探す
-    cand = [c for c in div_one.columns
-            if any(k in c.lower() for k in ("ann", "annual"))
-            and any(k in c.lower() for k in ("dps", "div"))]
-    if not cand:
-        return out
-    c = cand[0]
-    s = pd.to_numeric(div_one[c], errors="coerce").dropna()
-    if len(s) < 2:
-        return out
-    hist = s.tolist()[-6:]
-    out["dps_hist"] = [round(x, 2) for x in hist]
-    diffs = np.diff(hist)
-    out["div_no_cut"] = bool((diffs >= 0).all())
-    out["div_up"] = bool(hist[-1] > hist[0])
-    return out
-
-
-def compute_metrics(stmts, listed, prices, divs) -> pd.DataFrame:
+def compute_metrics(stmts, listed, prices, divs=None) -> pd.DataFrame:
     fy = _fy_rows(stmts)
     last_px = (prices.sort_values("Date").groupby("Code")["AdjC"].last()
                if len(prices) else pd.Series(dtype=float))
@@ -172,104 +96,123 @@ def compute_metrics(stmts, listed, prices, divs) -> pd.DataFrame:
                 "name": r.get("CoName"),
                 "sector": r.get("S33Nm"),
                 "scale": r.get("ScaleCat"),
-                "margin": r.get("MrgnNm"),
+                "mkt": r.get("MktNm"),
             }
 
-    div_by_code = dict(tuple(divs.groupby("Code"))) if len(divs) and "Code" in divs.columns else {}
     all_by_code = dict(tuple(stmts.groupby("Code")))
-
     rows = []
     for code, grp in fy.groupby("Code"):
         code = str(code)
         info = linfo.get(code, {})
-        # ETF/REIT等は listed 側の名称で除外しづらいので stmts 由来のみ
-        grp = grp.tail(5)
+        # 株式市場(プライム/スタンダード/グロース)以外(REIT/ETF/Pro等)は除外
+        if info.get("mkt") not in ("プライム", "スタンダード", "グロース"):
+            continue
         px = last_px.get(code)
         if px is None or not np.isfinite(px):
             continue
+        grp = grp.tail(6)
         latest = grp.iloc[-1]
 
-        sales = _series(grp, "sales")
-        op = _series(grp, "op")
-        npi = _series(grp, "np")
-        eps = _series(grp, "eps")
+        sales = pd.to_numeric(grp["Sales"], errors="coerce")
+        op = pd.to_numeric(grp["OP"], errors="coerce")
+        eps = pd.to_numeric(grp["EPS"], errors="coerce")
+        dps = pd.to_numeric(grp["DivAnn"], errors="coerce")
+
+        s_last, o_last = _num(latest["Sales"]), _num(latest["OP"])
+        n_last, e_last = _num(latest["NP"]), _num(latest["EPS"])
+        eq, cfo = _num(latest["Eq"]), _num(latest["CFO"])
+        casheq, ta = _num(latest.get("CashEq")), _num(latest["TA"])
+        bps = _num(latest.get("BPS"))
 
         m = {
             "code": code,
             "code4": code[:-1] if len(code) == 5 and code.endswith("0") else code,
-            "name": info.get("name"),
-            "sector": info.get("sector"),
-            "scale": info.get("scale"),
-            "price": round(float(px), 1),
-            "as_of": as_of,
-            "fy_end": str(latest.get("CurPerEn"))[:10],
+            "name": info.get("name"), "sector": info.get("sector"),
+            "scale": info.get("scale"), "mkt": info.get("mkt"),
+            "price": round(float(px), 1), "as_of": as_of,
+            "fy_end": str(latest["CurPerEn"])[:10],
             "sales_cagr3": _cagr(sales.tail(4)),
             "op_cagr3": _cagr(op.tail(4)),
-            "op_margin": None,
-            "roe": None, "eqar": None, "cfo_pos": None,
+            "op_margin": round(o_last / s_last * 100, 1) if s_last and o_last is not None else None,
+            "roe": round(n_last / eq * 100, 1) if eq and n_last is not None else None,
+            "eqar": round(_pct(latest["EqAR"]), 1) if _num(latest["EqAR"]) is not None else None,
+            "cfo_pos": bool(cfo > 0) if cfo is not None else None,
             "eps_hist": [round(float(x), 1) for x in eps.dropna().tolist()][-5:],
+            "dps_hist": [round(float(x), 2) for x in dps.dropna().tolist()][-5:],
             "sales_hist": [round(float(x) / OKU, 1) for x in sales.dropna().tolist()][-5:],
             "op_hist": [round(float(x) / OKU, 1) for x in op.dropna().tolist()][-5:],
         }
-        s_last, o_last = num(latest, col(grp, "sales")), num(latest, col(grp, "op"))
-        n_last, e_last = num(latest, col(grp, "np")), num(latest, col(grp, "eps"))
-        eq, ta = num(latest, col(grp, "eq")), num(latest, col(grp, "ta"))
-        eqar, cfo = num(latest, col(grp, "eqar")), num(latest, col(grp, "cfo"))
-        if s_last and o_last is not None:
-            m["op_margin"] = round(o_last / s_last * 100, 1)
-        if eq and n_last is not None:
-            m["roe"] = round(n_last / eq * 100, 1)
-        if eqar is not None:
-            m["eqar"] = round(eqar * 100 if eqar <= 1 else eqar, 1)
-        if cfo is not None:
-            m["cfo_pos"] = bool(cfo > 0)
 
-        # EPS上昇傾向: 上昇年の比率>=0.6 かつ 最新>最古
+        # EPS上昇傾向: 上昇年比率>=0.6 かつ 最新>最古
         e = eps.dropna()
         if len(e) >= 3:
-            ups = (np.diff(e) > 0).mean()
+            ups = float((np.diff(e) > 0).mean())
             m["eps_uptrend"] = bool(ups >= 0.6 and e.iloc[-1] > e.iloc[0])
-            m["eps_up_ratio"] = round(float(ups), 2)
         else:
             m["eps_uptrend"] = None
-            m["eps_up_ratio"] = None
 
-        # 発行済株式数: カラムがあれば使用、なければ NP/EPS で推定
-        shares = num(latest, col(grp, "shares"))
+        # 減配チェック(実績DivAnn系列)
+        d = dps.dropna()
+        if len(d) >= 3:
+            m["div_no_cut"] = bool((np.diff(d) >= 0).all())
+            m["div_up"] = bool(d.iloc[-1] > d.iloc[0])
+        else:
+            m["div_no_cut"] = None
+            m["div_up"] = None
+
+        # 株式数 → 時価総額
+        sh_out, tr_sh = _num(latest.get("ShOutFY")), _num(latest.get("TrShFY"))
+        shares = (sh_out - tr_sh) if sh_out and tr_sh is not None else sh_out
         if not shares and n_last and e_last:
-            shares = abs(n_last) / abs(e_last) if e_last else None
+            shares = abs(n_last) / abs(e_last)
         m["mcap_oku"] = round(px * shares / OKU, 1) if shares else None
 
-        # 予想
-        fc = _forecast_row(all_by_code.get(code, grp))
-        f_eps = fc.get("f_eps")
-        f_dps = fc.get("f_dps")
-        m["f_sales_oku"] = round(fc["f_sales"] / OKU, 1) if fc.get("f_sales") else None
-        m["f_op_oku"] = round(fc["f_op"] / OKU, 1) if fc.get("f_op") else None
+        # 今期予想
+        fc = _latest_forecast(all_by_code.get(code, grp))
+        f_sales, f_op = fc.get("FSales"), fc.get("FOP")
+        f_eps, f_dps = fc.get("FEPS"), fc.get("FDivAnn")
+        m["f_sales_oku"] = round(f_sales / OKU, 1) if f_sales else None
+        m["f_op_oku"] = round(f_op / OKU, 1) if f_op else None
         m["f_eps"] = round(f_eps, 1) if f_eps else None
-        m["fcst_zoshu"] = (bool(fc["f_sales"] > s_last)
-                          if fc.get("f_sales") and s_last else None)
-        m["fcst_zoeki"] = (bool(fc["f_op"] > o_last)
-                          if fc.get("f_op") and o_last is not None else None)
+        m["fcst_zoshu"] = bool(f_sales > s_last) if f_sales and s_last else None
+        m["fcst_zoeki"] = bool(f_op > o_last) if f_op and o_last is not None else None
 
         # バリュエーション
         eps_for_per = f_eps if f_eps and f_eps > 0 else (e_last if e_last and e_last > 0 else None)
         m["per"] = round(px / eps_for_per, 1) if eps_for_per else None
         m["per_kind"] = "予" if (f_eps and f_eps > 0) else ("実" if eps_for_per else None)
-        m["pbr"] = (round(m["mcap_oku"] * OKU / eq, 2)
-                    if m["mcap_oku"] and eq and eq > 0 else None)
+        if bps and bps > 0:
+            m["pbr"] = round(px / bps, 2)
+        elif m["mcap_oku"] and eq and eq > 0:
+            m["pbr"] = round(m["mcap_oku"] * OKU / eq, 2)
+        else:
+            m["pbr"] = None
+
+        # 現金系 (清原式簡易版の材料)
+        mcap = m["mcap_oku"] * OKU if m["mcap_oku"] else None
+        if casheq is not None and mcap:
+            m["cash_ratio"] = round(casheq / mcap * 100, 1)       # 現金/時価総額 %
+            if ta is not None and eq is not None:
+                m["netnet_lite"] = round((casheq - (ta - eq)) / mcap * 100, 1)  # (現金-総負債)/時価総額 %
+            else:
+                m["netnet_lite"] = None
+        else:
+            m["cash_ratio"] = None
+            m["netnet_lite"] = None
 
         # 配当
-        dm = _div_metrics(div_by_code.get(code), None)
-        m.update(dm)
-        dps_now = f_dps
-        if dps_now is None and dm.get("dps_hist"):
-            dps_now = dm["dps_hist"][-1]
+        dps_now = f_dps if f_dps is not None else (float(d.iloc[-1]) if len(d) else None)
         m["dps"] = round(dps_now, 2) if dps_now else None
         m["yield"] = round(dps_now / px * 100, 2) if dps_now and px else None
-        eps_for_payout = f_eps if f_eps and f_eps > 0 else e_last
-        m["payout"] = (round(dps_now / eps_for_payout * 100, 1)
-                       if dps_now and eps_for_payout and eps_for_payout > 0 else None)
+        po = fc.get("FPayoutRatioAnn")
+        if po is None and _num(latest.get("PayoutRatioAnn")) is not None:
+            po = _num(latest["PayoutRatioAnn"])
+        if po is not None:
+            m["payout"] = round(_pct(po), 1)
+        elif dps_now and eps_for_per and eps_for_per > 0:
+            m["payout"] = round(dps_now / eps_for_per * 100, 1)
+        else:
+            m["payout"] = None
 
         rows.append(m)
     return pd.DataFrame(rows)
@@ -278,30 +221,33 @@ def compute_metrics(stmts, listed, prices, divs) -> pd.DataFrame:
 # ---- スクリーニング ----------------------------------------------------------
 
 def _f(v, default=-1e18):
-    return v if v is not None and not (isinstance(v, float) and np.isnan(v)) else default
+    if v is None:
+        return default
+    if isinstance(v, float) and np.isnan(v):
+        return default
+    return v
 
 
 def screen_niokutameo(df: pd.DataFrame) -> pd.DataFrame:
     """弐億貯男式: PER<=15 × 時価総額<=1000億 × 増収増益グロース。"""
     c = df[
-        df["per"].apply(lambda v: _f(v, 1e18) <= 15)
+        df["per"].apply(lambda v: 0 < _f(v, 1e18) <= 15)
         & df["mcap_oku"].apply(lambda v: 0 < _f(v, 1e18) <= 1000)
         & df["sales_cagr3"].apply(lambda v: _f(v) >= 10)
         & df["op_cagr3"].apply(lambda v: _f(v) >= 10)
         & df["roe"].apply(lambda v: _f(v) > 10)
-        & (df["cfo_pos"] != False)  # noqa: E712 (None許容)
+        & (df["cfo_pos"] != False)  # noqa: E712
         & df["eqar"].apply(lambda v: _f(v) >= 40)
-        & (df["fcst_zoshu"] != False)
-        & (df["fcst_zoeki"] != False)
+        & (df["fcst_zoshu"] == True)  # noqa: E712 予想確認できるもののみ
+        & (df["fcst_zoeki"] == True)  # noqa: E712
     ].copy()
 
     def score(r):
         s = 0.0
         s += min(_f(r["sales_cagr3"], 0), 40)
         s += min(_f(r["op_cagr3"], 0), 40)
-        s += max(0, 15 - _f(r["per"], 15)) * 3          # 割安ほど加点
+        s += max(0.0, 15 - _f(r["per"], 15)) * 3
         s += min(_f(r["roe"], 0), 30) * 0.5
-        s += 10 if r["fcst_zoshu"] and r["fcst_zoeki"] else 0
         s += min(_f(r["eqar"], 0), 80) * 0.1
         return round(s, 1)
 
@@ -310,23 +256,24 @@ def screen_niokutameo(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def screen_kiyohara(df: pd.DataFrame) -> pd.DataFrame:
-    """清原式(暫定): 小型×低PER×低PBR×自己資本厚め。
-    本来はネットキャッシュ比率 = (現金+投資有価証券*0.7-有利子負債)/時価総額。
-    EDINET接続(フェーズ2)で本計算に置き換える。"""
+    """清原式(簡易版): 小型×低PER×低PBR×現金リッチ。
+    本来のネットキャッシュ比率 = (現金+投資有価証券*0.7-有利子負債)/時価総額 は
+    EDINET接続(フェーズ2)で置き換える。現状は現金同等物ベースの近似。"""
     c = df[
         df["mcap_oku"].apply(lambda v: 0 < _f(v, 1e18) <= 500)
-        & df["per"].apply(lambda v: 0 < _f(v, 1e18) <= 10)
+        & df["per"].apply(lambda v: 0 < _f(v, 1e18) <= 12)
         & df["pbr"].apply(lambda v: 0 < _f(v, 1e18) <= 1.0)
-        & df["eqar"].apply(lambda v: _f(v) >= 60)
-        & (df["cfo_pos"] != False)
+        & df["eqar"].apply(lambda v: _f(v) >= 50)
+        & (df["cfo_pos"] != False)  # noqa: E712
     ].copy()
 
     def score(r):
         s = 0.0
-        s += max(0, 1.0 - _f(r["pbr"], 1.0)) * 60
-        s += max(0, 10 - _f(r["per"], 10)) * 4
-        s += (_f(r["eqar"], 60) - 60) * 0.8
-        s += min(max(_f(r["roe"], 0), 0), 15)
+        s += min(max(_f(r["cash_ratio"], 0), 0), 120) * 0.5   # 現金/時価総額
+        s += max(0.0, _f(r["netnet_lite"], -100)) * 0.3       # 現金-総負債>0は強い
+        s += max(0.0, 1.0 - _f(r["pbr"], 1.0)) * 50
+        s += max(0.0, 12 - _f(r["per"], 12)) * 3
+        s += (_f(r["eqar"], 50) - 50) * 0.4
         s += 5 if _f(r["yield"], 0) >= 3 else 0
         return round(s, 1)
 
@@ -335,40 +282,37 @@ def screen_kiyohara(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def screen_dividend_growth(df: pd.DataFrame) -> pd.DataFrame:
-    """辻さん基準: 配当バリュー成長。
-    利回り2%以上(3%で割安) × 配当性向30-40%理想 × 減配なし ×
-    EPSおおむね右肩上がり × PER10-20 × PBR高すぎない。"""
+    """辻さん基準: 配当バリュー成長。"""
     c = df[
         df["yield"].apply(lambda v: _f(v) >= 2.0)
         & df["per"].apply(lambda v: 5 <= _f(v, 1e18) <= 20)
-        & (df["eps_uptrend"] != False)
-        & (df["div_no_cut"] != False)
+        & (df["eps_uptrend"] == True)   # noqa: E712
+        & (df["div_no_cut"] != False)   # noqa: E712
         & df["mcap_oku"].apply(lambda v: 0 < _f(v, 1e18) <= 3000)
+        & df["payout"].apply(lambda v: _f(v, 0) <= 70)
     ].copy()
 
     def score(r):
         s = 0.0
         y = _f(r["yield"], 0)
-        s += min(y, 5) * 12                              # 利回り(3%~で大きく)
+        s += min(y, 5) * 12
         s += 10 if y >= 3 else 0
         po = r["payout"]
         if po is not None:
             if 30 <= po <= 40:
-                s += 20                                   # 理想レンジ
+                s += 20
             elif 20 <= po <= 50:
                 s += 10
-            elif po > 70:
-                s -= 15                                   # 配当過剰
-        s += 15 if r["eps_uptrend"] else 0
         s += 10 if r["div_up"] else 0
         s += 10 if r["div_no_cut"] else 0
         per = _f(r["per"], 20)
-        if 10 <= per <= 20:
-            s += (20 - per)                               # 割安ほど加点
+        if per <= 20:
+            s += (20 - per)
         pbr = r["pbr"]
         if pbr is not None and pbr <= 1.5:
             s += 5
         s += min(max(_f(r["sales_cagr3"], 0), 0), 15) * 0.5
+        s += 5 if r["fcst_zoshu"] and r["fcst_zoeki"] else 0
         return round(s, 1)
 
     c["score"] = c.apply(score, axis=1)
@@ -377,10 +321,12 @@ def screen_dividend_growth(df: pd.DataFrame) -> pd.DataFrame:
 
 # ---- 出力 --------------------------------------------------------------------
 
-OUT_COLS = ["code", "code4", "name", "sector", "scale", "price", "mcap_oku",
+OUT_COLS = ["code", "code4", "name", "sector", "scale", "mkt", "price", "mcap_oku",
             "per", "per_kind", "pbr", "yield", "payout", "dps",
             "sales_cagr3", "op_cagr3", "op_margin", "roe", "eqar", "cfo_pos",
+            "cash_ratio", "netnet_lite",
             "eps_uptrend", "div_no_cut", "div_up", "fcst_zoshu", "fcst_zoeki",
+            "f_sales_oku", "f_op_oku", "f_eps",
             "eps_hist", "dps_hist", "sales_hist", "op_hist", "fy_end", "score"]
 
 
@@ -407,11 +353,11 @@ def build_output(df: pd.DataFrame, path="docs/data/latest.json"):
         "universe": int(len(df)),
         "screens": {
             "niokutameo": {"label": "弐億貯男式", "count": int(len(n)), "items": _records(n)},
-            "kiyohara": {"label": "清原式(暫定)", "count": int(len(k)), "items": _records(k)},
+            "kiyohara": {"label": "清原式(簡易)", "count": int(len(k)), "items": _records(k)},
             "dividend": {"label": "配当バリュー成長", "count": int(len(d)), "items": _records(d)},
         },
         "notes": {
-            "kiyohara": "ネットキャッシュ比率はEDINET接続後に本計算へ置換予定(現在はPBR/自己資本比率による暫定)",
+            "kiyohara": "現金比率=現金同等物/時価総額、ネットネット=(現金-総負債)/時価総額の簡易版。EDINET接続後に清原式ネットキャッシュ比率(有利子負債・投資有価証券考慮)へ置換予定。",
             "data": "出所: J-Quants (Standard)。PERの「予」は会社予想EPS、「実」は直近実績EPSベース。",
         },
     }

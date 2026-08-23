@@ -187,15 +187,9 @@ def update_statements(cli) -> pd.DataFrame:
 
 
 def update_dividends(cli) -> pd.DataFrame:
-    """配当情報。V2 get_fin_dividend を開示日ベースで増分取得。"""
-    try:
-        return _incremental_by_day(
-            cli, "get_fin_dividend", DIV_PQ, DIV_LOOKBACK_DAYS,
-            "DiscDate", None, "dividends",
-        )
-    except Exception as e:
-        print(f"dividends取得スキップ: {str(e)[:200]}", flush=True)
-        return pd.read_parquet(DIV_PQ) if os.path.exists(DIV_PQ) else pd.DataFrame()
+    """配当API(get_fin_dividend)はStandardプラン対象外(403実測)。
+    年間配当は fin_summary の DivAnn/FDivAnn で代替できるため取得しない。"""
+    return pd.DataFrame()
 
 
 def load_all():
