@@ -2,6 +2,6 @@ metrics: 3693 codes
 edinet coverage: codes=3913 {'cash': 3912, 'cur_assets': 3856, 'liabilities': 3913, 'inv_sec': 3394, 'borrowings': 3913, 'inventories': 2740}
 screens: 弐億貯男式=112 清原式=527 配当=586 universe=3693
 analysis: graded=3690 edinet_matched=3623
-charts: 377 codes
+charts: 132 codes
 universe: 3693 codes
 alerts: 206 codes with events
