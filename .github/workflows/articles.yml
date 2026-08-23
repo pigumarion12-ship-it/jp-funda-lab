@@ -1,0 +1,38 @@
+name: articles
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: articles
+  cancel-in-progress: false
+
+jobs:
+  articles:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install deps
+        run: pip install -q requests pandas
+      - name: Update articles
+        run: |
+          set -o pipefail
+          python run.py articles 2>&1 | tee reports/articles_log.txt
+      - name: Commit outputs
+        run: |
+          git config user.name "funda-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add docs/data reports/
+          git diff --cached --quiet || git commit -m "articles: $(date -u +%F)"
+          for i in 1 2 3; do
+            git push && break
+            git pull --rebase --autostash origin main || { git rebase --abort || true; git pull -X ours --no-rebase origin main; }
+            sleep 5
+          done

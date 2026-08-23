@@ -9,7 +9,7 @@ usage:
 import os
 import sys
 
-from src import data, screens, edinet, grade
+from src import data, screens, edinet, grade, articles
 from src.jq import get_client
 
 
@@ -49,11 +49,17 @@ def main():
         update()
     elif cmd == "edinet":
         edinet_update()
+    elif cmd == "articles":
+        articles.update()
     elif cmd == "build":
         build()
     elif cmd == "all":
         update()
         edinet_update()
+        try:
+            articles.update()
+        except Exception as e:
+            print(f"articles更新失敗(継続): {str(e)[:200]}", flush=True)
         build()
     else:
         raise SystemExit(f"unknown command: {cmd}")

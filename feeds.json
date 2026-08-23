@@ -1,0 +1,56 @@
+{
+  "feeds": [
+    {
+      "id": "sbi_em_weekly",
+      "kind": "watch",
+      "label": "SBI 新興株ウィークリー",
+      "desc": "SBI証券の新興市場週間レポート",
+      "home": "https://go.sbisec.co.jp/media/report/dom_em_weekly/",
+      "strategies": [
+        {"type": "static", "url": "https://go.sbisec.co.jp/media/report/dom_em_weekly/", "path_prefix": "/media/report/dom_em_weekly/"},
+        {"type": "gnews", "q": "\"新興株ウィークリー\" site:go.sbisec.co.jp"}
+      ]
+    },
+    {
+      "id": "shikiho_kinouchi",
+      "kind": "watch",
+      "label": "木野内栄治さんの記事 (四季報オンライン)",
+      "desc": "四季報オンラインの木野内栄治氏の連載・記事",
+      "home": "https://shikiho.toyokeizai.net/news/search/author?query=%E6%9C%A8%E9%87%8E%E5%86%85%20%E6%A0%84%E6%B2%BB",
+      "strategies": [
+        {"type": "gnews", "q": "\"木野内栄治\" site:shikiho.toyokeizai.net"},
+        {"type": "gnews", "q": "\"木野内栄治\" site:toyokeizai.net"}
+      ]
+    },
+    {
+      "id": "toshiru_smallcap",
+      "kind": "candidate",
+      "label": "トウシル「NISAで中小型株」シリーズ",
+      "desc": "楽天証券トウシルの中小型株連載。TOPIX採用候補や出遅れ割安株のリストが定期更新",
+      "home": "https://media.rakuten-sec.net/",
+      "strategies": [
+        {"type": "gnews", "q": "\"中小型株\" site:media.rakuten-sec.net"}
+      ]
+    },
+    {
+      "id": "kabutan_selection",
+      "kind": "candidate",
+      "label": "株探プレミアム 特集記事",
+      "desc": "株探の特集・コラム(成長株・割安株特集が定期掲載)。サイト側の方針により自動リスト化は限定的",
+      "home": "https://selection.kabutan.jp/",
+      "strategies": [
+        {"type": "gnews", "q": "site:selection.kabutan.jp"}
+      ]
+    },
+    {
+      "id": "kabutan_tokusyu",
+      "kind": "candidate",
+      "label": "株探 市場ニュース(特集)",
+      "desc": "株探本体の特集カテゴリ。決算特集・テーマ特集など",
+      "home": "https://kabutan.jp/news/marketnews/?category=3",
+      "strategies": [
+        {"type": "gnews", "q": "\"特集\" site:kabutan.jp"}
+      ]
+    }
+  ]
+}

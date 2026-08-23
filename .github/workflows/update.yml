@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "update / edinet / build / all"
+        description: "update / edinet / articles / build / all"
         required: false
         default: "all"
       backfill_days:

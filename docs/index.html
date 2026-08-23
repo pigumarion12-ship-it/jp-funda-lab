@@ -9,28 +9,48 @@
 :root{
   --bg:#f6f7f9; --card:#ffffff; --text:#1a222c; --sub:#5b6572; --line:#e3e7ec;
   --accent:#2563eb; --good:#0e9f6e; --warn:#d97706; --bad:#dc2626; --chip:#eef2f7;
+  --drawer:#ffffff;
 }
 @media (prefers-color-scheme: dark){
   :root{ --bg:#10151c; --card:#1a212b; --text:#e8edf3; --sub:#93a0af; --line:#2a3441;
-         --accent:#5b8def; --good:#34d399; --warn:#fbbf24; --bad:#f87171; --chip:#232d3a; }
+         --accent:#5b8def; --good:#34d399; --warn:#fbbf24; --bad:#f87171; --chip:#232d3a;
+         --drawer:#161d26; }
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);
   font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;
   font-size:14px; line-height:1.5;}
-header{padding:14px 16px 4px}
-h1{font-size:18px;margin:0}
-.sub{color:var(--sub);font-size:12px;margin-top:2px}
-.tabs{display:flex;gap:6px;padding:10px 12px;overflow-x:auto;position:sticky;top:0;
-  background:var(--bg);z-index:5}
-.tab{border:1px solid var(--line);background:var(--card);color:var(--text);
-  border-radius:18px;padding:7px 14px;font-size:13px;white-space:nowrap;cursor:pointer}
-.tab.active{background:var(--accent);border-color:var(--accent);color:#fff}
-.note{color:var(--sub);font-size:11px;padding:0 16px 8px}
-.toolbar{display:flex;gap:8px;padding:0 12px 8px;align-items:center}
+header{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:10px;
+  padding:10px 14px;background:var(--bg);border-bottom:1px solid var(--line)}
+#menuBtn{border:1px solid var(--line);background:var(--card);color:var(--text);
+  border-radius:8px;font-size:17px;padding:5px 10px;cursor:pointer}
+h1{font-size:17px;margin:0}
+.sub{color:var(--sub);font-size:11.5px;margin-top:1px}
+
+/* drawer */
+#drawer{position:fixed;top:0;left:0;bottom:0;width:230px;background:var(--drawer);
+  border-right:1px solid var(--line);z-index:40;transform:translateX(-100%);
+  transition:transform .18s ease;padding:14px 10px;overflow-y:auto}
+#drawer.open{transform:none}
+#overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:30;display:none}
+#overlay.show{display:block}
+.dttl{font-size:11px;color:var(--sub);margin:12px 8px 4px}
+.mi{display:block;width:100%;text-align:left;border:0;background:none;color:var(--text);
+  font-size:14px;padding:9px 10px;border-radius:9px;cursor:pointer}
+.mi.active{background:var(--accent);color:#fff}
+.mi.dis{color:var(--sub);opacity:.6}
+@media(min-width:960px){
+  #drawer{transform:none}
+  main{margin-left:230px}
+  #menuBtn{display:none}
+  #overlay{display:none!important}
+}
+
+.toolbar{display:flex;gap:8px;padding:10px 12px 8px;align-items:center}
 .toolbar input{flex:1;padding:8px 12px;border:1px solid var(--line);border-radius:10px;
   background:var(--card);color:var(--text);font-size:13px}
 .count{color:var(--sub);font-size:12px;white-space:nowrap}
+.note{color:var(--sub);font-size:11px;padding:0 16px 8px}
 .list{padding:0 10px 40px;display:flex;flex-direction:column;gap:8px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
 .row1{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
@@ -49,6 +69,7 @@ h1{font-size:18px;margin:0}
 .links a{color:var(--accent);text-decoration:none;margin-right:12px}
 .empty{color:var(--sub);text-align:center;padding:40px 16px}
 .pos{color:var(--good)} .neg{color:var(--bad)}
+footer{color:var(--sub);font-size:11px;padding:0 16px 30px}
 .grades{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
 .gr{display:inline-flex;flex-direction:column;align-items:center;border:1px solid var(--line);
   border-radius:8px;padding:3px 6px;min-width:44px}
@@ -56,28 +77,74 @@ h1{font-size:18px;margin:0}
 .gr .gv{font-weight:700;font-size:14px}
 .gA{color:var(--good)} .gB{color:var(--accent)} .gC{color:var(--sub)}
 .gD{color:var(--warn)} .gE{color:var(--bad)}
-footer{color:var(--sub);font-size:11px;padding:0 16px 30px}
+.comment{margin-top:8px;background:var(--chip);border-radius:10px;padding:8px 10px;font-size:12.5px}
+.comment .ct{font-weight:600;font-size:11.5px;color:var(--accent);margin-bottom:3px}
+/* articles */
+.feed{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
+.fhead{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.fttl{font-weight:600;font-size:14.5px}
+.fdesc{color:var(--sub);font-size:11.5px;margin-top:2px}
+.fbtn{border:1px solid var(--line);background:var(--chip);color:var(--text);border-radius:8px;
+  padding:4px 9px;font-size:11.5px;cursor:pointer;white-space:nowrap}
+.fbtn.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.arts{margin-top:8px;display:flex;flex-direction:column;gap:2px}
+.art{display:block;padding:6px 4px;border-top:1px solid var(--line);color:var(--text);
+  text-decoration:none;font-size:13px}
+.art .ad{color:var(--sub);font-size:11px;margin-right:6px}
+.newb{display:inline-block;background:var(--bad);color:#fff;font-size:9.5px;border-radius:5px;
+  padding:0 5px;margin-left:6px;vertical-align:1px}
 </style>
 </head>
 <body>
+<div id="overlay" onclick="toggleMenu(false)"></div>
+<nav id="drawer">
+  <div class="dttl">スクリーニング</div>
+  <button class="mi" data-v="niokutameo" onclick="go('niokutameo')">弐億貯男式</button>
+  <button class="mi" data-v="kiyohara" onclick="go('kiyohara')">清原式</button>
+  <button class="mi" data-v="dividend" onclick="go('dividend')">配当バリュー成長</button>
+  <div class="dttl">分析</div>
+  <button class="mi" data-v="analysis" onclick="go('analysis')">A〜E分析</button>
+  <div class="dttl">読む</div>
+  <button class="mi" data-v="articles" onclick="go('articles')">記事</button>
+  <div class="dttl">今後</div>
+  <button class="mi dis">ウォッチリスト (準備中)</button>
+</nav>
 <header>
-  <h1>ファンダ・ラボ</h1>
-  <div class="sub" id="asof">読み込み中…</div>
+  <button id="menuBtn" onclick="toggleMenu()">☰</button>
+  <div><h1 id="vtitle">ファンダ・ラボ</h1><div class="sub" id="asof">読み込み中…</div></div>
 </header>
-<div class="tabs" id="tabs"></div>
-<div class="note" id="note"></div>
-<div class="toolbar">
+<main>
+<div class="toolbar" id="toolbar">
   <input id="q" type="search" placeholder="銘柄名・コード・業種で絞り込み">
   <span class="count" id="count"></span>
 </div>
+<div class="note" id="note"></div>
 <div class="list" id="list"><div class="empty">データを読み込んでいます…</div></div>
-<footer>出所: J-Quants (Standard) / 毎営業日 20:30台に自動更新。投資判断は自己責任で。<br>
-PERの「予」は会社予想EPS・「実」は直近実績EPSベース。時価総額はEPSとNPからの推定を含む。</footer>
+<footer>出所: J-Quants (Standard)・EDINET / 毎営業日 20:30台に自動更新。投資判断は自己責任で。<br>
+PERの「予」は会社予想EPS・「実」は直近実績EPSベース。</footer>
+</main>
 <script>
-let DATA=null, ANALYSIS=null, tab='niokutameo';
+let DATA=null, ANALYSIS=null, ARTICLES=null, COMMENTS=null, view='niokutameo';
+const VT={niokutameo:'弐億貯男式',kiyohara:'清原式',dividend:'配当バリュー成長',
+          analysis:'A〜E分析',articles:'記事'};
 const fmt=(v,suf='')=> (v===null||v===undefined)?'—':(v+suf);
 const yen=(v)=> (v===null||v===undefined)?'—':(v>=10000? (v/10000).toFixed(1)+'兆':v.toLocaleString()+'億');
+function toggleMenu(f){const d=document.getElementById('drawer'),o=document.getElementById('overlay');
+  const open=f!==undefined?f:!d.classList.contains('open');
+  d.classList.toggle('open',open);o.classList.toggle('show',open);}
+function promoted(){try{return new Set(JSON.parse(localStorage.getItem('promotedFeeds')||'[]'))}catch(e){return new Set()}}
+function setPromoted(s){try{localStorage.setItem('promotedFeeds',JSON.stringify([...s]))}catch(e){}}
+function togglePromote(id){const s=promoted(); s.has(id)?s.delete(id):s.add(id); setPromoted(s); render();}
 
+function commentBlock(code4){
+  if(!COMMENTS||!COMMENTS.items||!COMMENTS.items[code4])return '';
+  const c=COMMENTS.items[code4];
+  const src=(c.sources||[]).map(s=>`<a href="${s.url}" target="_blank" rel="noopener">${s.label}</a>`).join(' ');
+  return `<div class="comment"><div class="ct">📝 解説 (${COMMENTS.as_of||''})</div>
+    ${c.reason?`<div>${c.reason}</div>`:''}
+    ${c.risk?`<div style="margin-top:3px">⚠ ${c.risk}</div>`:''}
+    ${src?`<div class="links" style="margin-top:4px">出典: ${src}</div>`:''}</div>`;
+}
 function chips(r){
   const c=[];
   if(r.fcst_zoshu&&r.fcst_zoeki)c.push(['今期増収増益予想','g']);
@@ -90,12 +157,14 @@ function chips(r){
   if(r.payout!==null&&r.payout>=30&&r.payout<=40)c.push(['配当性向30-40%','g']);
   if(r.payout!==null&&r.payout>70)c.push(['配当過剰?','b']);
   if(r.cfo_pos===false)c.push(['営業CF赤字','b']);
+  if(r.netcash_ratio!==null&&r.netcash_ratio!==undefined&&r.netcash_ratio>=100)c.push(['実質キャッシュ>時価総額','g']);
+  if(COMMENTS&&COMMENTS.items&&COMMENTS.items[r.code4])c.push(['📝解説あり','g']);
   return c.map(x=>`<span class="chip ${x[1]}">${x[0]}</span>`).join('');
 }
 function card(r,i){
   const kab=`https://kabutan.jp/stock/?code=${r.code4}`;
   const buf=`https://www.buffett-code.com/company/${r.code4}/`;
-  return `<div class="card" onclick="this.classList.toggle('open')">
+  return `<div class="card" onclick="if(event.target.tagName!=='A')this.classList.toggle('open')">
   <div class="row1"><div class="nm">${i+1}. ${r.name||''}<span class="cd">${r.code4} ・ ${r.sector||''}</span></div>
     <div class="score">${fmt(r.score)}</div></div>
   <div class="row2">
@@ -110,10 +179,11 @@ function card(r,i){
   <div class="chips">${chips(r)}</div>
   <div class="detail">
     <div>売上CAGR3y <b>${fmt(r.sales_cagr3,'%')}</b> ・ 営利CAGR3y <b>${fmt(r.op_cagr3,'%')}</b> ・ 営利率 <b>${fmt(r.op_margin,'%')}</b> ・ 自己資本比率 <b>${fmt(r.eqar,'%')}</b></div>
-    <div>配当 <b>${fmt(r.dps,'円')}</b> ・ 配当性向 <b>${fmt(r.payout,'%')}</b></div>
+    <div>配当 <b>${fmt(r.dps,'円')}</b> ・ 配当性向 <b>${fmt(r.payout,'%')}</b>${r.seisan_oku!==null&&r.seisan_oku!==undefined?` ・ 清算価値 <b>${yen(r.seisan_oku)}</b>`:''}</div>
     <div class="hist">EPS推移: ${r.eps_hist&&r.eps_hist.length?r.eps_hist.join(' → '):'—'}</div>
     <div class="hist">配当推移: ${r.dps_hist&&r.dps_hist.length?r.dps_hist.join(' → '):'—'}</div>
     <div class="hist">売上(億): ${r.sales_hist&&r.sales_hist.length?r.sales_hist.join(' → '):'—'} ・ 営利(億): ${r.op_hist&&r.op_hist.length?r.op_hist.join(' → '):'—'}</div>
+    ${commentBlock(r.code4)}
     <div class="links" style="margin-top:6px">
       <a href="${kab}" target="_blank" rel="noopener">株探</a>
       <a href="${buf}" target="_blank" rel="noopener">バフェットコード</a>
@@ -133,26 +203,58 @@ function analysisCard(r,i){
   const kab=`https://kabutan.jp/stock/?code=${r.code4}`;
   const buf=`https://www.buffett-code.com/company/${r.code4}/`;
   const danger=r.danger&&r.danger.length?`<div class="chips">${r.danger.map(d=>`<span class="chip b">⚠${d}</span>`).join('')}</div>`:'';
-  return `<div class="card" onclick="this.classList.toggle('open')">
+  return `<div class="card" onclick="if(event.target.tagName!=='A')this.classList.toggle('open')">
   <div class="row1"><div class="nm">${i+1}. ${r.name||''}<span class="cd">${r.code4} ・ ${r.sector||''}</span></div>
     <div class="score">${r.composite}</div></div>
   ${gradeChips(r.grades)}
   ${danger}
   <div class="detail">
     <div>時価総額 <b>${yen(r.mcap_oku)}</b> ・ PER <b>${fmt(r.per)}</b> ・ PBR <b>${fmt(r.pbr)}</b> ・ 利回り <b>${fmt(r.yield,'%')}</b></div>
-    <div>清算価値 <b>${yen(r.seisan_oku)}</b>${r.seisan_oku!==null&&r.mcap_oku?(r.mcap_oku<r.seisan_oku?' <span class="pos">(時価総額が清算価値を下回る)</span>':''):''} ・ NC比率 <b>${fmt(r.netcash_ratio,'%')}</b></div>
+    <div>清算価値 <b>${yen(r.seisan_oku)}</b>${r.seisan_oku!==null&&r.mcap_oku&&r.mcap_oku<r.seisan_oku?' <span class="pos">(時価総額が清算価値を下回る)</span>':''} ・ NC比率 <b>${fmt(r.netcash_ratio,'%')}</b></div>
     <div>DCFレンジ: 弱気 <b>${yen(r.dcf_weak_oku)}</b> 〜 強気 <b>${yen(r.dcf_strong_oku)}</b> (対 時価総額 ${yen(r.mcap_oku)})</div>
     <div class="hist">EDINET期末: ${r.edinet_end||'—'} ・ Aが1つでもあれば買材料(手順§5)。⑥事業素質は定性のため未採点</div>
+    ${commentBlock(r.code4)}
     <div class="links" style="margin-top:6px">
       <a href="${kab}" target="_blank" rel="noopener">株探</a>
       <a href="${buf}" target="_blank" rel="noopener">バフェットコード</a>
     </div>
   </div></div>`;
 }
+function feedBlock(f,isWatch){
+  const btn=isWatch
+    ?(f.kind==='candidate'?`<button class="fbtn on" onclick="togglePromote('${f.id}')">★ よく見る中</button>`:'')
+    :`<button class="fbtn" onclick="togglePromote('${f.id}')">☆ よく見るへ</button>`;
+  const items=(f.items||[]).slice(0,isWatch?15:5).map(a=>
+    `<a class="art" href="${a.url}" target="_blank" rel="noopener"><span class="ad">${a.date||''}</span>${a.title}${a.new?'<span class="newb">NEW</span>':''}</a>`).join('');
+  return `<div class="feed">
+    <div class="fhead"><div><div class="fttl">${f.label}</div><div class="fdesc">${f.desc||''}</div></div>${btn}</div>
+    <div class="arts">${items||`<div class="empty" style="padding:12px">自動リスト化できないサイトです。下のリンクから直接どうぞ。</div>`}</div>
+    <div class="links" style="margin-top:8px"><a href="${f.home}" target="_blank" rel="noopener">サイトで一覧を開く →</a></div>
+  </div>`;
+}
+function renderArticles(){
+  document.getElementById('toolbar').style.display='none';
+  document.getElementById('note').textContent='「記事候補」の☆を押すと「よく見る記事」に移動します(この端末に保存)。フィードの追加・削除はClaudeに言えばOK。';
+  if(!ARTICLES){document.getElementById('list').innerHTML='<div class="empty">記事データはまだありません(次回更新で表示されます)</div>';return;}
+  const p=promoted();
+  const watch=ARTICLES.feeds.filter(f=>f.kind==='watch'||p.has(f.id));
+  const cand=ARTICLES.feeds.filter(f=>f.kind==='candidate'&&!p.has(f.id));
+  let h='';
+  h+=`<div class="dttl" style="padding:0 6px">よく見る記事</div>`;
+  h+=watch.length?watch.map(f=>feedBlock(f,true)).join(''):'<div class="empty">なし</div>';
+  if(cand.length){
+    h+=`<div class="dttl" style="padding:10px 6px 0">記事候補 (スクリーニングに合いそうな連載)</div>`;
+    h+=cand.map(f=>feedBlock(f,false)).join('');
+  }
+  document.getElementById('list').innerHTML=h;
+}
 function render(){
-  if(!DATA)return;
+  document.querySelectorAll('.mi[data-v]').forEach(e=>e.classList.toggle('active',e.dataset.v===view));
+  document.getElementById('vtitle').textContent=VT[view]||'ファンダ・ラボ';
+  if(view==='articles'){renderArticles();document.getElementById('count').textContent='';return;}
+  document.getElementById('toolbar').style.display='';
   const q=document.getElementById('q').value.trim().toLowerCase();
-  if(tab==='analysis'){
+  if(view==='analysis'){
     if(!ANALYSIS){document.getElementById('list').innerHTML='<div class="empty">A〜E分析データはまだありません(EDINET初回取得後に表示されます)</div>';document.getElementById('count').textContent='';return;}
     let items=ANALYSIS.items;
     if(q)items=items.filter(r=>((r.name||'')+(r.code4||'')+(r.sector||'')).toLowerCase().includes(q));
@@ -162,34 +264,28 @@ function render(){
       items.length?items.map(analysisCard).join(''):'<div class="empty">該当なし</div>';
     return;
   }
-  const s=DATA.screens[tab];
+  if(!DATA)return;
+  const s=DATA.screens[view];
   let items=s.items;
   if(q)items=items.filter(r=>((r.name||'')+(r.code4||'')+(r.sector||'')).toLowerCase().includes(q));
   document.getElementById('count').textContent=`${items.length}/${s.count}件`;
-  document.getElementById('note').textContent=(DATA.notes&&tab==='kiyohara')?DATA.notes.kiyohara:'';
+  document.getElementById('note').textContent=(DATA.notes&&view==='kiyohara')?DATA.notes.kiyohara:'';
   document.getElementById('list').innerHTML=
     items.length?items.map(card).join(''):'<div class="empty">条件に合致する銘柄がありません</div>';
 }
-function setTab(t){tab=t;
-  document.querySelectorAll('.tab').forEach(e=>e.classList.toggle('active',e.dataset.t===t));
-  render();}
-fetch('data/latest.json?'+Date.now()).then(r=>{
-  if(!r.ok)throw 0; return r.json();
-}).then(d=>{
+function go(v){view=v;toggleMenu(false);render();window.scrollTo(0,0);}
+fetch('data/latest.json?'+Date.now()).then(r=>{if(!r.ok)throw 0;return r.json()}).then(d=>{
   DATA=d;
   document.getElementById('asof').textContent=
     `データ基準日 ${d.as_of||'—'} ・ 更新 ${d.generated_at||'—'} ・ 対象 ${d.universe}銘柄`;
-  const tabs=document.getElementById('tabs');
-  tabs.innerHTML=Object.entries(d.screens).map(([k,v])=>
-    `<button class="tab" data-t="${k}" onclick="setTab('${k}')">${v.label} (${v.count})</button>`).join('')
-    +`<button class="tab" data-t="analysis" onclick="setTab('analysis')">A〜E分析</button>`;
-  setTab('niokutameo');
-  fetch('data/analysis.json?'+Date.now()).then(r=>r.ok?r.json():null).then(a=>{ANALYSIS=a;}).catch(()=>{});
+  render();
 }).catch(()=>{
   document.getElementById('asof').textContent='初回データ生成待ち';
-  document.getElementById('list').innerHTML=
-    '<div class="empty">まだデータがありません。<br>初回のデータ取得(GitHub Actions)が完了すると表示されます。</div>';
+  document.getElementById('list').innerHTML='<div class="empty">まだデータがありません。</div>';
 });
+fetch('data/analysis.json?'+Date.now()).then(r=>r.ok?r.json():null).then(a=>{ANALYSIS=a;if(view==='analysis')render();}).catch(()=>{});
+fetch('data/articles.json?'+Date.now()).then(r=>r.ok?r.json():null).then(a=>{ARTICLES=a;if(view==='articles')render();}).catch(()=>{});
+fetch('data/comments.json?'+Date.now()).then(r=>r.ok?r.json():null).then(c=>{COMMENTS=c;render();}).catch(()=>{});
 document.getElementById('q').addEventListener('input',render);
 </script>
 </body>
