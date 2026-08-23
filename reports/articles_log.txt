@@ -1,6 +1,6 @@
 articles sbi_em_weekly: fetched=305 known=305 (auto=True)
 articles shikiho_kinouchi: fetched=106 known=106 (auto=True)
 articles toshiru_smallcap: fetched=100 known=100 (auto=True)
-articles kabutan_selection: fetched=37 known=37 (auto=True)
-articles kabutan_tokusyu: fetched=100 known=100 (auto=True)
+articles kabutan_selection: fetched=36 known=37 (auto=True)
+articles kabutan_tokusyu: fetched=100 known=101 (auto=True)
 articles.json: 125 items total
