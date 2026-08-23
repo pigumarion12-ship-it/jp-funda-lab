@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>ファンダ・ラボ</title>
+<style>
+:root{
+  --bg:#f6f7f9; --card:#ffffff; --text:#1a222c; --sub:#5b6572; --line:#e3e7ec;
+  --accent:#2563eb; --good:#0e9f6e; --warn:#d97706; --bad:#dc2626; --chip:#eef2f7;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#10151c; --card:#1a212b; --text:#e8edf3; --sub:#93a0af; --line:#2a3441;
+         --accent:#5b8def; --good:#34d399; --warn:#fbbf24; --bad:#f87171; --chip:#232d3a; }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;
+  font-size:14px; line-height:1.5;}
+header{padding:14px 16px 4px}
+h1{font-size:18px;margin:0}
+.sub{color:var(--sub);font-size:12px;margin-top:2px}
+.tabs{display:flex;gap:6px;padding:10px 12px;overflow-x:auto;position:sticky;top:0;
+  background:var(--bg);z-index:5}
+.tab{border:1px solid var(--line);background:var(--card);color:var(--text);
+  border-radius:18px;padding:7px 14px;font-size:13px;white-space:nowrap;cursor:pointer}
+.tab.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.note{color:var(--sub);font-size:11px;padding:0 16px 8px}
+.toolbar{display:flex;gap:8px;padding:0 12px 8px;align-items:center}
+.toolbar input{flex:1;padding:8px 12px;border:1px solid var(--line);border-radius:10px;
+  background:var(--card);color:var(--text);font-size:13px}
+.count{color:var(--sub);font-size:12px;white-space:nowrap}
+.list{padding:0 10px 40px;display:flex;flex-direction:column;gap:8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.row1{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.nm{font-weight:600;font-size:15px}
+.cd{color:var(--sub);font-weight:400;font-size:12px;margin-left:4px}
+.score{font-weight:700;color:var(--accent);font-size:15px;white-space:nowrap}
+.row2{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:6px;font-size:12.5px}
+.kv b{font-weight:600}
+.kv .l{color:var(--sub)}
+.chips{margin-top:6px;display:flex;flex-wrap:wrap;gap:4px}
+.chip{background:var(--chip);border-radius:6px;padding:2px 7px;font-size:11px;color:var(--sub)}
+.chip.g{color:var(--good)} .chip.w{color:var(--warn)} .chip.b{color:var(--bad)}
+.detail{display:none;margin-top:8px;border-top:1px dashed var(--line);padding-top:8px;font-size:12.5px}
+.card.open .detail{display:block}
+.hist{color:var(--sub)}
+.links a{color:var(--accent);text-decoration:none;margin-right:12px}
+.empty{color:var(--sub);text-align:center;padding:40px 16px}
+.pos{color:var(--good)} .neg{color:var(--bad)}
+footer{color:var(--sub);font-size:11px;padding:0 16px 30px}
+</style>
+</head>
+<body>
+<header>
+  <h1>ファンダ・ラボ</h1>
+  <div class="sub" id="asof">読み込み中…</div>
+</header>
+<div class="tabs" id="tabs"></div>
+<div class="note" id="note"></div>
+<div class="toolbar">
+  <input id="q" type="search" placeholder="銘柄名・コード・業種で絞り込み">
+  <span class="count" id="count"></span>
+</div>
+<div class="list" id="list"><div class="empty">データを読み込んでいます…</div></div>
+<footer>出所: J-Quants (Standard) / 毎営業日 20:30台に自動更新。投資判断は自己責任で。<br>
+PERの「予」は会社予想EPS・「実」は直近実績EPSベース。時価総額はEPSとNPからの推定を含む。</footer>
+<script>
+let DATA=null, tab='niokutameo';
+const fmt=(v,suf='')=> (v===null||v===undefined)?'—':(v+suf);
+const yen=(v)=> (v===null||v===undefined)?'—':(v>=10000? (v/10000).toFixed(1)+'兆':v.toLocaleString()+'億');
+
+function chips(r){
+  const c=[];
+  if(r.fcst_zoshu&&r.fcst_zoeki)c.push(['今期増収増益予想','g']);
+  if(r.eps_uptrend)c.push(['EPS上昇傾向','g']);
+  if(r.eps_uptrend===false)c.push(['EPS頭打ち','w']);
+  if(r.div_no_cut)c.push(['減配なし','g']);
+  if(r.div_no_cut===false)c.push(['減配あり','b']);
+  if(r.div_up)c.push(['増配基調','g']);
+  if(r.yield>=3)c.push(['利回り3%超','g']);
+  if(r.payout!==null&&r.payout>=30&&r.payout<=40)c.push(['配当性向30-40%','g']);
+  if(r.payout!==null&&r.payout>70)c.push(['配当過剰?','b']);
+  if(r.cfo_pos===false)c.push(['営業CF赤字','b']);
+  return c.map(x=>`<span class="chip ${x[1]}">${x[0]}</span>`).join('');
+}
+function card(r,i){
+  const kab=`https://kabutan.jp/stock/?code=${r.code4}`;
+  const buf=`https://www.buffett-code.com/company/${r.code4}/`;
+  return `<div class="card" onclick="this.classList.toggle('open')">
+  <div class="row1"><div class="nm">${i+1}. ${r.name||''}<span class="cd">${r.code4} ・ ${r.sector||''}</span></div>
+    <div class="score">${fmt(r.score)}</div></div>
+  <div class="row2">
+    <span class="kv"><span class="l">株価</span> <b>${fmt(r.price)}</b></span>
+    <span class="kv"><span class="l">時価総額</span> <b>${yen(r.mcap_oku)}</b></span>
+    <span class="kv"><span class="l">PER</span> <b>${fmt(r.per)}</b><span class="l">${r.per_kind||''}</span></span>
+    <span class="kv"><span class="l">PBR</span> <b>${fmt(r.pbr)}</b></span>
+    <span class="kv"><span class="l">利回り</span> <b>${fmt(r.yield,'%')}</b></span>
+    <span class="kv"><span class="l">ROE</span> <b>${fmt(r.roe,'%')}</b></span>
+  </div>
+  <div class="chips">${chips(r)}</div>
+  <div class="detail">
+    <div>売上CAGR3y <b>${fmt(r.sales_cagr3,'%')}</b> ・ 営利CAGR3y <b>${fmt(r.op_cagr3,'%')}</b> ・ 営利率 <b>${fmt(r.op_margin,'%')}</b> ・ 自己資本比率 <b>${fmt(r.eqar,'%')}</b></div>
+    <div>配当 <b>${fmt(r.dps,'円')}</b> ・ 配当性向 <b>${fmt(r.payout,'%')}</b></div>
+    <div class="hist">EPS推移: ${r.eps_hist&&r.eps_hist.length?r.eps_hist.join(' → '):'—'}</div>
+    <div class="hist">配当推移: ${r.dps_hist&&r.dps_hist.length?r.dps_hist.join(' → '):'—'}</div>
+    <div class="hist">売上(億): ${r.sales_hist&&r.sales_hist.length?r.sales_hist.join(' → '):'—'} ・ 営利(億): ${r.op_hist&&r.op_hist.length?r.op_hist.join(' → '):'—'}</div>
+    <div class="links" style="margin-top:6px">
+      <a href="${kab}" target="_blank" rel="noopener">株探</a>
+      <a href="${buf}" target="_blank" rel="noopener">バフェットコード</a>
+      <a href="https://www.tradingview.com/chart/?symbol=TSE%3A${r.code4}" target="_blank" rel="noopener">チャート</a>
+    </div>
+  </div></div>`;
+}
+function render(){
+  if(!DATA)return;
+  const s=DATA.screens[tab];
+  const q=document.getElementById('q').value.trim().toLowerCase();
+  let items=s.items;
+  if(q)items=items.filter(r=>((r.name||'')+(r.code4||'')+(r.sector||'')).toLowerCase().includes(q));
+  document.getElementById('count').textContent=`${items.length}/${s.count}件`;
+  document.getElementById('note').textContent=(DATA.notes&&tab==='kiyohara')?DATA.notes.kiyohara:'';
+  document.getElementById('list').innerHTML=
+    items.length?items.map(card).join(''):'<div class="empty">条件に合致する銘柄がありません</div>';
+}
+function setTab(t){tab=t;
+  document.querySelectorAll('.tab').forEach(e=>e.classList.toggle('active',e.dataset.t===t));
+  render();}
+fetch('data/latest.json?'+Date.now()).then(r=>{
+  if(!r.ok)throw 0; return r.json();
+}).then(d=>{
+  DATA=d;
+  document.getElementById('asof').textContent=
+    `データ基準日 ${d.as_of||'—'} ・ 更新 ${d.generated_at||'—'} ・ 対象 ${d.universe}銘柄`;
+  const tabs=document.getElementById('tabs');
+  tabs.innerHTML=Object.entries(d.screens).map(([k,v])=>
+    `<button class="tab" data-t="${k}" onclick="setTab('${k}')">${v.label} (${v.count})</button>`).join('');
+  setTab('niokutameo');
+}).catch(()=>{
+  document.getElementById('asof').textContent='初回データ生成待ち';
+  document.getElementById('list').innerHTML=
+    '<div class="empty">まだデータがありません。<br>初回のデータ取得(GitHub Actions)が完了すると表示されます。</div>';
+});
+document.getElementById('q').addEventListener('input',render);
+</script>
+</body>
+</html>
