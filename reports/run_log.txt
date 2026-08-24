@@ -1,7 +1,22 @@
+listed: 4444
+prices: 1 days to fetch
+prices 0/1 2026-08-24 rows=4444
+prices: 1628856
+stmts: 3 days to fetch
+stmts 0/3 2022-12-30 rows=0
+stmts: 104668
+edinet: 0 days to fetch
+edinet_fin: 5971 docs
+articles sbi_em_weekly: fetched=305 known=305 (auto=True)
+articles shikiho_kinouchi: fetched=108 known=112 (auto=True)
+articles toshiru_smallcap: fetched=100 known=106 (auto=True)
+articles kabutan_selection: fetched=34 known=37 (auto=True)
+articles kabutan_tokusyu: fetched=100 known=181 (auto=True)
+articles.json: 125 items total
 metrics: 3693 codes
 edinet coverage: codes=3913 {'cash': 3912, 'cur_assets': 3856, 'liabilities': 3913, 'inv_sec': 3394, 'borrowings': 3913, 'inventories': 2740}
 analysis: graded=3690 edinet_matched=3623
-screens: 総合=1295 弐億貯男式=112 清原式=303 配当=586 universe=3693
-charts: 143 codes
+screens: 総合=1293 弐億貯男式=112 清原式=301 配当=587 universe=3693
+charts: 144 codes
 universe: 3693 codes
-alerts: 206 codes with events
+alerts: 194 codes with events
