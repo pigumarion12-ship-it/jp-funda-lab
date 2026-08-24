@@ -29,8 +29,8 @@ def _n(v):
 def merge_edinet(df: pd.DataFrame, ed: pd.DataFrame) -> pd.DataFrame:
     """EDINET最新BSをJ-Quantsメトリクスにマージし、清原式・清算価値を計算。"""
     df = df.copy()
-    for c in ("netcash_ratio", "seisan_oku", "dcf_weak_oku", "dcf_strong_oku",
-              "edinet_end", "cur_ratio", "borrowings_oku"):
+    for c in ("netcash_ratio", "netcash_cons", "seisan_oku", "dcf_weak_oku",
+              "dcf_strong_oku", "edinet_end", "cur_ratio", "borrowings_oku"):
         df[c] = None
     if not len(ed):
         return df
@@ -59,6 +59,12 @@ def merge_edinet(df: pd.DataFrame, ed: pd.DataFrame) -> pd.DataFrame:
         if ca is not None and liab is not None and mcap_yen:
             nc = ca + inv * 0.7 - liab
             df.at[i, "netcash_ratio"] = round(nc / mcap_yen * 100, 1)
+            # 保守的NC比率: 流動資産に掛け目(現金100/有価証券100/売掛85/在庫50/その他50)
+            if cash is not None:
+                other_ca = max(0.0, ca - cash - sec_s - recv - inven)
+                adj_ca = cash + sec_s + recv * 0.85 + inven * 0.5 + other_ca * 0.5
+                nc_cons = adj_ca + inv * 0.7 - liab
+                df.at[i, "netcash_cons"] = round(nc_cons / mcap_yen * 100, 1)
         # 清算価値
         if cash is not None and liab is not None:
             sv = (cash + sec_s + recv * 0.85 + inven * 0.5 + inv * 0.5
@@ -246,7 +252,7 @@ def build_analysis(df: pd.DataFrame, path="docs/data/analysis.json"):
     items.sort(key=lambda x: (-x["n_a"], -x["composite"]))
     out = {
         "generated_at": pd.Timestamp.now(tz="Asia/Tokyo").strftime("%Y-%m-%d %H:%M"),
-        "note": "アークランド式(企業分析手順)の機械化パート。⑥事業素質は定性のため対象外。Aが1つでもあれば買材料(手順§5)。",
+        "note": "使い方: 全銘柄を6項目(①資産割安/②収益割安/③財務/④収益性/⑤成長/⑦還元)でA〜E自動採点し、平均点順に上位を表示。Aが1つでもあれば買材料(手順§5)。カードをタップすると清算価値・DCFレンジ・危険シグナルの詳細が開きます。⑥事業素質は定性のため📝解説で補完。",
         "legend": ["①資産割安", "②収益割安", "③財務健全", "④収益性", "⑤成長性", "⑦株主還元"],
         "items": items[:50],
         "byCode": by_code,

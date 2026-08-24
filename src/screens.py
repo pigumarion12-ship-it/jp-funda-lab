@@ -143,6 +143,10 @@ def compute_metrics(stmts, listed, prices, divs=None) -> pd.DataFrame:
             "op_hist": [round(float(x) / OKU, 1) for x in op.dropna().tolist()][-5:],
         }
 
+        # 2期連続減益(営業利益)の検出
+        o = op.dropna()
+        m["op_declining"] = bool(len(o) >= 3 and o.iloc[-1] < o.iloc[-2] < o.iloc[-3])
+
         # EPS上昇傾向: 上昇年比率>=0.6 かつ 最新>最古
         e = eps.dropna()
         if len(e) >= 3:
@@ -271,13 +275,17 @@ def screen_niokutameo(df: pd.DataFrame) -> pd.DataFrame:
 def screen_kiyohara(df: pd.DataFrame) -> pd.DataFrame:
     """清原式: ネットキャッシュ比率(流動資産+投資有価証券×0.7-総負債)/時価総額。
     EDINETデータがある銘柄は本計算、無い銘柄は現金同等物ベースの簡易判定。"""
-    has_nc = "netcash_ratio" in df.columns and df["netcash_ratio"].notna()
+    # ランキングは保守的NC比率(掛け目後)を優先、無ければ素のNC比率
+    df = df.copy()
+    df["_nc"] = df["netcash_cons"].where(df["netcash_cons"].notna(), df["netcash_ratio"]) \
+        if "netcash_cons" in df.columns else df.get("netcash_ratio")
+    has_nc = df["_nc"].notna()
     real = df[
-        (has_nc if isinstance(has_nc, pd.Series) else False)
-        & df["netcash_ratio"].apply(lambda v: _f(v) >= 30)
+        has_nc
+        & df["_nc"].apply(lambda v: _f(v) >= 30)
         & df["mcap_oku"].apply(lambda v: 0 < _f(v, 1e18) <= 500)
         & df["per"].apply(lambda v: 0 < _f(v, 1e18) <= 12)
-    ].copy() if isinstance(has_nc, pd.Series) else df.iloc[0:0].copy()
+    ].copy()
 
     fallback = df[
         (~has_nc if isinstance(has_nc, pd.Series) else True)
@@ -290,9 +298,9 @@ def screen_kiyohara(df: pd.DataFrame) -> pd.DataFrame:
 
     def score(r):
         s = 0.0
-        ncr = r.get("netcash_ratio")
+        ncr = r.get("_nc")
         if ncr is not None and not (isinstance(ncr, float) and np.isnan(ncr)):
-            s += min(_f(ncr, 0), 200)                        # 本計算: 比率そのまま(100超=時価総額超)
+            s += min(_f(ncr, 0), 200)                        # 保守的NC比率(掛け目後)
             s += 30 if _f(ncr, 0) >= 100 else 0              # 超割安ボーナス
         else:
             s += min(max(_f(r["cash_ratio"], 0), 0), 120) * 0.5
@@ -301,6 +309,11 @@ def screen_kiyohara(df: pd.DataFrame) -> pd.DataFrame:
         s += max(0.0, 12 - _f(r["per"], 12)) * 3
         s += max(0.0, (_f(r["eqar"], 50) - 50)) * 0.4
         s += 5 if _f(r["yield"], 0) >= 3 else 0
+        if r.get("op_declining"):
+            s -= 40                                          # 2期連続減益ペナルティ
+        opm = r.get("op_margin")
+        if opm is not None and _f(opm, 99) < 2:
+            s -= 20                                          # 薄利ペナルティ
         return round(s, 1)
 
     c = pd.concat([real, fallback], ignore_index=True)
@@ -354,7 +367,8 @@ def screen_dividend_growth(df: pd.DataFrame) -> pd.DataFrame:
 OUT_COLS = ["code", "code4", "name", "sector", "scale", "mkt", "price", "mcap_oku",
             "per", "per_kind", "pbr", "yield", "payout", "dps",
             "sales_cagr3", "op_cagr3", "op_margin", "roe", "eqar", "cfo_pos",
-            "cash_ratio", "netnet_lite", "netcash_ratio", "seisan_oku", "edinet_end",
+            "cash_ratio", "netnet_lite", "netcash_ratio", "netcash_cons",
+            "op_declining", "seisan_oku", "edinet_end",
             "eps_uptrend", "div_no_cut", "div_up", "fcst_zoshu", "fcst_zoeki",
             "f_sales_oku", "f_op_oku", "f_eps",
             "eps_hist", "dps_hist", "sales_hist", "op_hist", "fy_end", "score"]
@@ -412,7 +426,7 @@ def build_output(df: pd.DataFrame, path="docs/data/latest.json"):
             "dividend": {"label": "配当バリュー成長", "count": int(len(d)), "items": _records(d)},
         },
         "notes": {
-            "kiyohara": "NC比率=(流動資産+投資有価証券×0.7−総負債)÷時価総額(EDINET本計算)。NC比率が無い銘柄は現金同等物ベースの簡易判定。100%超=時価総額を上回る実質キャッシュ。",
+            "kiyohara": "ランキングは保守的NC比率=(現金100%+有価証券100%+売掛85%+在庫50%+その他流動50%+投資有価証券70%−総負債)÷時価総額。2期連続減益は−40点、営業利益率2%未満は−20点。",
             "data": "出所: J-Quants (Standard)。PERの「予」は会社予想EPS、「実」は直近実績EPSベース。",
         },
     }

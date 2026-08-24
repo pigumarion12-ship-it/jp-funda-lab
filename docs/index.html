@@ -162,6 +162,9 @@ footer{color:var(--sub);font-size:11px;padding:0 18px 34px}
   <button class="mi" data-v="articles" onclick="go('articles')">記事</button>
   <div class="dttl">マイリスト</div>
   <button class="mi" data-v="watch" onclick="go('watch')">ウォッチリスト <span id="wbadge"></span></button>
+  <div class="dttl">操作</div>
+  <a class="mi" style="text-decoration:none;display:block" target="_blank" rel="noopener"
+     href="https://claude.ai/new?q=%E3%82%B9%E3%82%B1%E3%82%B8%E3%83%A5%E3%83%BC%E3%83%AB%E3%82%BF%E3%82%B9%E3%82%AF%E3%80%8C%E3%83%95%E3%82%A1%E3%83%B3%E3%83%80%E3%83%BB%E3%83%A9%E3%83%9C%20%E8%A7%A3%E8%AA%AC%E7%94%9F%E6%88%90%EF%BC%88%E6%89%8B%E5%8B%95%E5%AE%9F%E8%A1%8C%E5%B0%82%E7%94%A8%EF%BC%89%E3%80%8D%E3%82%92fire_trigger%E3%81%A7%E5%AE%9F%E8%A1%8C%E3%81%97%E3%81%A6%E3%80%82%E5%AE%9F%E8%A1%8C%E3%81%A0%E3%81%91%E3%81%A7OK%E3%80%82">📝 解説を更新</a>
 </nav>
 <header>
   <button id="menuBtn" onclick="toggleMenu()">☰</button>
@@ -304,6 +307,7 @@ function chips(r){
   if(r.payout!==null&&r.payout>70)c.push(['配当過剰?','b']);
   if(r.cfo_pos===false)c.push(['営業CF赤字','b']);
   if(r.netcash_ratio!==null&&r.netcash_ratio!==undefined&&r.netcash_ratio>=100)c.push(['実質キャッシュ>時価総額','g']);
+  if(r.op_declining)c.push(['⚠2期連続減益','b']);
   if(COMMENTS&&COMMENTS.items&&COMMENTS.items[r.code4])c.push(['📝解説あり','g']);
   return c.map(x=>`<span class="chip ${x[1]}">${x[0]}</span>`).join('');
 }
@@ -320,7 +324,7 @@ function card(r,i){
     <span class="kv"><span class="l">PBR</span> <b>${fmt(r.pbr)}</b></span>
     <span class="kv"><span class="l">利回り</span> <b>${fmt(r.yield,'%')}</b></span>
     <span class="kv"><span class="l">ROE</span> <b>${fmt(r.roe,'%')}</b></span>
-    ${r.netcash_ratio!==null&&r.netcash_ratio!==undefined?`<span class="kv"><span class="l">NC比率</span> <b>${r.netcash_ratio}%</b></span>`:''}
+    ${r.netcash_cons!==null&&r.netcash_cons!==undefined?`<span class="kv"><span class="l">保守NC</span> <b>${r.netcash_cons}%</b></span>`:(r.netcash_ratio!==null&&r.netcash_ratio!==undefined?`<span class="kv"><span class="l">NC比率</span> <b>${r.netcash_ratio}%</b></span>`:'')}
   </div>
   <div class="chips">${chips(r)}</div>
   <div class="detail">
