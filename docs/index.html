@@ -143,6 +143,24 @@ footer{color:var(--sub);font-size:11px;padding:0 18px 34px}
   font-weight:700;margin-bottom:4px}
 #chartpop .cpd{color:var(--sub);font-size:10.5px;font-weight:400}
 #chartpop .cpx{border:0;background:none;color:var(--sub);font-size:15px;cursor:pointer;padding:0 2px}
+/* deep dive viewer */
+#deepview{position:fixed;inset:0;z-index:70;background:var(--bg);display:none;overflow-y:auto}
+#deepview.show{display:block}
+#deepview .dvh{position:sticky;top:0;background:var(--card);border-bottom:1px solid var(--line);
+  padding:12px 16px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+#deepview .dvh b{font-size:16px}
+#deepview .dvx{border:1px solid var(--line);background:var(--chip);color:var(--text);
+  border-radius:9px;padding:5px 12px;font-size:13px;cursor:pointer}
+.mdc{max-width:760px;margin:0 auto;padding:16px 18px 60px;font-size:14px;line-height:1.8}
+.mdc h3{font-size:16px;margin:22px 0 6px;color:var(--accent)}
+.mdc p{margin:8px 0}
+.mdc li{margin:3px 0 3px 18px}
+.mdc a{color:var(--accent)}
+.dchips{display:flex;gap:6px;flex-wrap:wrap}
+.dchip{background:var(--chip);border:1px solid var(--line);border-radius:8px;
+  padding:2px 9px;font-size:11.5px;font-weight:600}
+.gmini{display:inline-block;background:var(--chip);border-radius:6px;padding:1px 7px;
+  font-size:10.5px;font-weight:700;margin:0 3px 0 0}
 </style>
 </head>
 <body>
@@ -186,6 +204,7 @@ footer{color:var(--sub);font-size:11px;padding:0 18px 34px}
 PERの「予」は会社予想EPS・「実」は直近実績EPSベース。</footer>
 </main>
 <div id="chartpop"></div>
+<div id="deepview"></div>
 <script>
 let DATA=null, ANALYSIS=null, ARTICLES=null, COMMENTS=null, CHARTS=null, view='sougou';
 let hoverTimer=null;
@@ -286,6 +305,65 @@ function promoted(){try{return new Set(JSON.parse(localStorage.getItem('promoted
 function setPromoted(s){try{localStorage.setItem('promotedFeeds',JSON.stringify([...s]))}catch(e){}}
 function togglePromote(id){const s=promoted(); s.has(id)?s.delete(id):s.add(id); setPromoted(s); render();}
 
+let DEEP=null;
+const GMLABELS=['資産','収益割安','財務','収益性','成長','還元'];
+function miniGrades(code4){
+  const bc=ANALYSIS&&ANALYSIS.byCode&&ANALYSIS.byCode[code4];
+  if(!bc||!bc.g)return '';
+  const spans=[...bc.g].map((v,i)=>v==='-'?'':`<span class="gmini g${v}">${GMLABELS[i]}${v}</span>`).join('');
+  return spans?`<div style="margin-top:6px">${spans}</div>`:'';
+}
+function deepLink(code4,name){
+  name=(name||'').replace(/'/g,'');
+  if(DEEP&&DEEP[code4])
+    return `<a href="javascript:void(0)" onclick="event.stopPropagation();openDeep('${code4}')">🔍深掘りレポート</a>`;
+  const q=encodeURIComponent('スケジュールタスク「ファンダ・ラボ 深掘り分析（手動実行専用）」をfire_triggerで実行して。textに「'+code4+' '+name+'」を渡して。実行だけでOK。');
+  return `<a href="https://claude.ai/new?q=${q}" target="_blank" rel="noopener" onclick="event.stopPropagation()">🤖AIで深掘り</a>`;
+}
+function deepChips(code4){
+  const d=DEEP&&DEEP[code4];
+  if(!d)return '';
+  return `<div class="dchips" style="margin-top:6px">
+    ${d.b?`<span class="dchip">BM強度 <span class="g${d.b}">${d.b}</span></span>`:''}
+    ${d.p?`<span class="dchip">永続性 <span class="g${d.p}">${d.p}</span></span>`:''}
+    ${d.t?`<span class="dchip">3倍期待 ${d.t}</span>`:''}
+  </div>`;
+}
+function mdToHtml(md){
+  const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  const lines=(md||'').split('\n');
+  let h='',inList=false;
+  for(let ln of lines){
+    let t=esc(ln.trim());
+    t=t.replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>')
+       .replace(/\[([^\]]+)\]\((https?:[^)]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>');
+    if(/^#{1,4}\s/.test(t)){if(inList){h+='</ul>';inList=false;}h+=`<h3>${t.replace(/^#+\s*/,'')}</h3>`;}
+    else if(/^[-・]\s/.test(t)){if(!inList){h+='<ul>';inList=true;}h+=`<li>${t.replace(/^[-・]\s*/,'')}</li>`;}
+    else if(t===''){if(inList){h+='</ul>';inList=false;}}
+    else{if(inList){h+='</ul>';inList=false;}h+=`<p>${t}</p>`;}
+  }
+  if(inList)h+='</ul>';
+  return h;
+}
+function openDeep(code4){
+  const dv=document.getElementById('deepview');
+  dv.innerHTML='<div class="dvh"><b>読み込み中…</b><button class="dvx" onclick="closeDeep()">閉じる ✕</button></div>';
+  dv.classList.add('show');
+  fetch(`data/deep/${code4}.json?`+Date.now()).then(r=>{if(!r.ok)throw 0;return r.json()}).then(d=>{
+    dv.innerHTML=`<div class="dvh"><b>🔍 ${d.name||''} <span class="cd">${code4}</span></b>
+      <button class="dvx" onclick="closeDeep()">閉じる ✕</button></div>
+      <div class="mdc">
+      <div class="dchips">${d.b?`<span class="dchip">ビジネスモデル強度 <span class="g${d.b}">${d.b}</span></span>`:''}
+        ${d.p?`<span class="dchip">業績の永続性 <span class="g${d.p}">${d.p}</span></span>`:''}
+        ${d.t?`<span class="dchip">2〜3年で3倍期待: ${d.t}</span>`:''}
+        <span class="dchip">${d.generated_at||''}</span></div>
+      ${mdToHtml(d.md)}</div>`;
+    window.scrollTo(0,0);
+  }).catch(()=>{
+    dv.innerHTML='<div class="dvh"><b>レポートを読み込めませんでした</b><button class="dvx" onclick="closeDeep()">閉じる ✕</button></div>';
+  });
+}
+function closeDeep(){document.getElementById('deepview').classList.remove('show');}
 function commentBlock(code4){
   if(!COMMENTS||!COMMENTS.items||!COMMENTS.items[code4])return '';
   const c=COMMENTS.items[code4];
@@ -328,6 +406,7 @@ function card(r,i){
     ${r.netcash_cons!==null&&r.netcash_cons!==undefined?`<span class="kv"><span class="l">保守NC</span> <b>${r.netcash_cons}%</b></span>`:(r.netcash_ratio!==null&&r.netcash_ratio!==undefined?`<span class="kv"><span class="l">NC比率</span> <b>${r.netcash_ratio}%</b></span>`:'')}
   </div>
   <div class="chips">${chips(r)}</div>
+  ${miniGrades(r.code4)}${deepChips(r.code4)}
   <div class="detail">
     <div>売上CAGR3y <b>${fmt(r.sales_cagr3,'%')}</b> ・ 営利CAGR3y <b>${fmt(r.op_cagr3,'%')}</b> ・ 営利率 <b>${fmt(r.op_margin,'%')}</b> ・ 自己資本比率 <b>${fmt(r.eqar,'%')}</b></div>
     <div>配当 <b>${fmt(r.dps,'円')}</b> ・ 配当性向 <b>${fmt(r.payout,'%')}</b>${r.seisan_oku!==null&&r.seisan_oku!==undefined?` ・ 清算価値 <b>${yen(r.seisan_oku)}</b>`:''}</div>
@@ -337,6 +416,7 @@ function card(r,i){
     ${r.sg_arc!==null&&r.sg_arc!==undefined?`<div class="hist">総合内訳: A〜E評価 ${r.sg_arc} ・ 成長 ${r.sg_growth} ・ 割安 ${r.sg_value} ・ 資産 ${r.sg_asset} (各100点満点)</div>`:''}
     ${commentBlock(r.code4)}
     <div class="links" style="margin-top:6px">
+      ${deepLink(r.code4,r.name)}
       <a href="${kab}" target="_blank" rel="noopener">株探</a>
       <a href="${buf}" target="_blank" rel="noopener">バフェットコード</a>
       <a href="https://www.tradingview.com/chart/?symbol=TSE%3A${r.code4}" target="_blank" rel="noopener">チャート</a>
@@ -360,6 +440,7 @@ function analysisCard(r,i){
     <div class="score">${r.composite}</div></div>
   ${gradeChips(r.grades)}
   ${danger}
+  ${deepChips(r.code4)}
   <div class="detail">
     <div>時価総額 <b>${yen(r.mcap_oku)}</b> ・ PER <b>${fmt(r.per)}</b> ・ PBR <b>${fmt(r.pbr)}</b> ・ 利回り <b>${fmt(r.yield,'%')}</b></div>
     <div>清算価値 <b>${yen(r.seisan_oku)}</b>${r.seisan_oku!==null&&r.mcap_oku&&r.mcap_oku<r.seisan_oku?' <span class="pos">(時価総額が清算価値を下回る)</span>':''} ・ NC比率 <b>${fmt(r.netcash_ratio,'%')}</b></div>
@@ -367,6 +448,7 @@ function analysisCard(r,i){
     <div class="hist">EDINET期末: ${r.edinet_end||'—'} ・ Aが1つでもあれば買材料(手順§5)。⑥事業素質は定性のため未採点</div>
     ${commentBlock(r.code4)}
     <div class="links" style="margin-top:6px">
+      ${deepLink(r.code4,r.name)}
       <a href="${kab}" target="_blank" rel="noopener">株探</a>
       <a href="${buf}" target="_blank" rel="noopener">バフェットコード</a>
     </div>
@@ -433,7 +515,9 @@ function watchCard(code,i){
     <span class="kv"><span class="l">ROE</span> <b>${fmt(u.roe,'%')}</b></span>
   </div>
   ${chips}
+  ${miniGrades(code)}${deepChips(code)}
   <div class="links" style="margin-top:7px">
+    ${deepLink(code,name)}
     <a href="https://kabutan.jp/stock/?code=${code}" target="_blank" rel="noopener">株探</a>
     <a href="https://www.buffett-code.com/company/${code}/" target="_blank" rel="noopener">バフェットコード</a>
     <a href="https://www.tradingview.com/chart/?symbol=TSE%3A${code}" target="_blank" rel="noopener">チャート</a>
@@ -490,7 +574,8 @@ fetch('data/latest.json?'+Date.now()).then(r=>{if(!r.ok)throw 0;return r.json()}
   document.getElementById('asof').textContent='初回データ生成待ち';
   document.getElementById('list').innerHTML='<div class="empty">まだデータがありません。</div>';
 });
-fetch('data/analysis.json?'+Date.now()).then(r=>r.ok?r.json():null).then(a=>{ANALYSIS=a;if(view==='analysis')render();}).catch(()=>{});
+fetch('data/analysis.json?'+Date.now()).then(r=>r.ok?r.json():null).then(a=>{ANALYSIS=a;render();}).catch(()=>{});
+fetch('data/deep/index.json?'+Date.now()).then(r=>r.ok?r.json():null).then(d=>{DEEP=d;render();}).catch(()=>{});
 fetch('data/articles.json?'+Date.now()).then(r=>r.ok?r.json():null).then(a=>{ARTICLES=a;if(view==='articles')render();}).catch(()=>{});
 fetch('data/comments.json?'+Date.now()).then(r=>r.ok?r.json():null).then(c=>{COMMENTS=c;render();}).catch(()=>{});
 fetch('data/charts.json?'+Date.now()).then(r=>r.ok?r.json():null).then(c=>{CHARTS=c;}).catch(()=>{});
