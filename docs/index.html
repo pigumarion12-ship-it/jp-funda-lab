@@ -422,7 +422,7 @@ function card(r,i){
       ${deepLink(r.code4,r.name)}
       <a href="${kab}" target="_blank" rel="noopener">株探</a>
       <a href="${buf}" target="_blank" rel="noopener">バフェットコード</a>
-      <a href="https://minkabu.jp/stock/${r.code4}/analyst_consensus" target="_blank" rel="noopener">アナリスト予想</a>
+      <a href="https://kabuyoho.ifis.co.jp/index.php?action=tp1&sa=report&bcode=${r.code4}" target="_blank" rel="noopener">アナリスト予想</a>
       <a href="https://www.tradingview.com/chart/?symbol=TSE%3A${r.code4}" target="_blank" rel="noopener">チャート</a>
     </div>
   </div></div>`;
@@ -523,7 +523,7 @@ function watchCard(code,i){
   <div class="links" style="margin-top:7px">
     ${deepLink(code,name)}
     <a href="https://kabutan.jp/stock/?code=${code}" target="_blank" rel="noopener">株探</a>
-    <a href="https://minkabu.jp/stock/${code}/analyst_consensus" target="_blank" rel="noopener">アナリスト予想</a>
+    <a href="https://kabuyoho.ifis.co.jp/index.php?action=tp1&sa=report&bcode=${code}" target="_blank" rel="noopener">アナリスト予想</a>
     <a href="https://www.buffett-code.com/company/${code}/" target="_blank" rel="noopener">バフェットコード</a>
     <a href="https://www.tradingview.com/chart/?symbol=TSE%3A${code}" target="_blank" rel="noopener">チャート</a>
   </div></div>`;
