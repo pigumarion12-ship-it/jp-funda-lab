@@ -245,12 +245,34 @@ def build_analysis(df: pd.DataFrame, path="docs/data/analysis.json"):
         by_code[r["code4"]] = {
             "g": "".join((g[k] or "-") for k in
                          ("asset", "earnings", "health", "profit", "growth", "payout")),
+            "cp": comp,
             "nc": r.get("netcash_ratio"), "sv": r.get("seisan_oku"),
             "dw": r.get("dcf_weak_oku"), "ds": r.get("dcf_strong_oku"),
             "dg": len(danger),
         }
     items.sort(key=lambda x: (-x["n_a"], -x["composite"]))
+    # NEW判定: 前回のanalysis.jsonと比較(同じ基準日なら前回のフラグを引き継ぐ)
+    data_as_of = (df["as_of"].dropna().iloc[0]
+                  if len(df) and df["as_of"].notna().any() else None)
+    old_codes, old_flags, old_as_of = set(), {}, None
+    if os.path.exists(path):
+        try:
+            old = json.load(open(path))
+            old_as_of = old.get("data_as_of")
+            for it in old.get("items", []):
+                old_codes.add(it["code4"])
+                old_flags[it["code4"]] = it.get("is_new", False)
+        except Exception:
+            pass
+    for it in items[:50]:
+        if old_as_of and old_as_of == data_as_of:
+            it["is_new"] = old_flags.get(it["code4"], it["code4"] not in old_codes)
+        elif old_codes:
+            it["is_new"] = it["code4"] not in old_codes
+        else:
+            it["is_new"] = False
     out = {
+        "data_as_of": data_as_of,
         "generated_at": pd.Timestamp.now(tz="Asia/Tokyo").strftime("%Y-%m-%d %H:%M"),
         "note": "使い方: 全銘柄を6項目(①資産割安/②収益割安/③財務/④収益性/⑤成長/⑦還元)でA〜E自動採点し、平均点順に上位を表示。Aが1つでもあれば買材料(手順§5)。カードをタップすると清算価値・DCFレンジ・危険シグナルの詳細が開きます。⑥事業素質は定性のため📝解説で補完。",
         "legend": ["①資産割安", "②収益割安", "③財務健全", "④収益性", "⑤成長性", "⑦株主還元"],

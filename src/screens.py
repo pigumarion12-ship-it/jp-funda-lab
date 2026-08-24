@@ -362,6 +362,46 @@ def screen_dividend_growth(df: pd.DataFrame) -> pd.DataFrame:
     return c.sort_values("score", ascending=False)
 
 
+def screen_sougou(df: pd.DataFrame) -> pd.DataFrame:
+    """総合(三式ミックス): アークランド式A〜E(40%) × 弐億貯男式成長割安(25%)
+    × バリュエーション(20%) × 清原式資産価値(15%)。"""
+    if "arc_comp" not in df.columns:
+        return df.iloc[0:0].copy()
+    c = df[
+        df["arc_comp"].apply(lambda v: _f(v) >= 2.0)
+        & df["mcap_oku"].apply(lambda v: 0 < _f(v, 1e18) <= 1000)
+        & df["per"].apply(lambda v: 0 < _f(v, 1e18) <= 18)
+        & (df["cfo_pos"] != False)  # noqa: E712
+    ].copy()
+    if not len(c):
+        c["score"] = []
+        return c
+
+    def parts(r):
+        arc = _f(r["arc_comp"], 0) / 4 * 100
+        g = (min(max(_f(r["sales_cagr3"], 0), 0), 25)
+             + min(max(_f(r["op_cagr3"], 0), 0), 25)) * 1.6
+        g += 10 if (r.get("fcst_zoshu") and r.get("fcst_zoeki")) else 0
+        g += min(max(_f(r["roe"], 0), 0), 20)
+        g = min(g, 100)
+        v = min(max(0.0, 18 - _f(r["per"], 18)) * 5, 60)
+        v += min(max(_f(r["yield"], 0), 0), 5) * 6
+        v = min(v, 100)
+        nc = r.get("netcash_cons")
+        if nc is None or (isinstance(nc, float) and np.isnan(nc)):
+            nc = r.get("netcash_ratio")
+        a = min(max(_f(nc, 0), 0), 150) / 1.5
+        total = 0.4 * arc + 0.25 * g + 0.2 * v + 0.15 * a
+        if r.get("op_declining"):
+            total -= 8
+        return round(total, 1), round(arc), round(g), round(v), round(a)
+
+    res = c.apply(parts, axis=1, result_type="expand")
+    c["score"], c["sg_arc"], c["sg_growth"], c["sg_value"], c["sg_asset"] = \
+        res[0], res[1], res[2], res[3], res[4]
+    return c.sort_values("score", ascending=False)
+
+
 # ---- 出力 --------------------------------------------------------------------
 
 OUT_COLS = ["code", "code4", "name", "sector", "scale", "mkt", "price", "mcap_oku",
@@ -369,6 +409,7 @@ OUT_COLS = ["code", "code4", "name", "sector", "scale", "mkt", "price", "mcap_ok
             "sales_cagr3", "op_cagr3", "op_margin", "roe", "eqar", "cfo_pos",
             "cash_ratio", "netnet_lite", "netcash_ratio", "netcash_cons",
             "op_declining", "seisan_oku", "edinet_end",
+            "arc_comp", "sg_arc", "sg_growth", "sg_value", "sg_asset",
             "eps_uptrend", "div_no_cut", "div_up", "fcst_zoshu", "fcst_zoeki",
             "f_sales_oku", "f_op_oku", "f_eps",
             "eps_hist", "dps_hist", "sales_hist", "op_hist", "fy_end", "score"]
@@ -411,27 +452,57 @@ def build_charts(prices: pd.DataFrame, codes5: set, path="docs/data/charts.json"
     print(f"charts: {len(series)} codes", flush=True)
 
 
+def _mark_new(screens_dict, new_as_of, path):
+    """前回のlatest.jsonと比較して新規入り銘柄にis_newを付ける。
+    同じ基準日での再ビルド時は前回のフラグを引き継ぐ。"""
+    old_screens, old_as_of = {}, None
+    if os.path.exists(path):
+        try:
+            old = json.load(open(path))
+            old_as_of = old.get("as_of")
+            old_screens = old.get("screens", {})
+        except Exception:
+            pass
+    for key, s in screens_dict.items():
+        old_items = (old_screens.get(key) or {}).get("items", [])
+        old_codes = {it["code4"] for it in old_items}
+        old_flags = {it["code4"]: it.get("is_new", False) for it in old_items}
+        for it in s["items"]:
+            if old_as_of and old_as_of == new_as_of:
+                it["is_new"] = old_flags.get(it["code4"], it["code4"] not in old_codes)
+            elif old_codes:
+                it["is_new"] = it["code4"] not in old_codes
+            else:
+                it["is_new"] = False
+
+
 def build_output(df: pd.DataFrame, path="docs/data/latest.json"):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     n = screen_niokutameo(df)
     k = screen_kiyohara(df)
     d = screen_dividend_growth(df)
+    sg = screen_sougou(df)
+    as_of = (df["as_of"].dropna().iloc[0] if len(df) and df["as_of"].notna().any() else None)
+    screens_dict = {
+        "sougou": {"label": "総合(三式ミックス)", "count": int(len(sg)), "items": _records(sg)},
+        "niokutameo": {"label": "弐億貯男式", "count": int(len(n)), "items": _records(n)},
+        "kiyohara": {"label": "清原式", "count": int(len(k)), "items": _records(k)},
+        "dividend": {"label": "配当バリュー成長", "count": int(len(d)), "items": _records(d)},
+    }
+    _mark_new(screens_dict, as_of, path)
     out = {
-        "as_of": (df["as_of"].dropna().iloc[0] if len(df) and df["as_of"].notna().any() else None),
+        "as_of": as_of,
         "generated_at": pd.Timestamp.now(tz="Asia/Tokyo").strftime("%Y-%m-%d %H:%M"),
         "universe": int(len(df)),
-        "screens": {
-            "niokutameo": {"label": "弐億貯男式", "count": int(len(n)), "items": _records(n)},
-            "kiyohara": {"label": "清原式", "count": int(len(k)), "items": _records(k)},
-            "dividend": {"label": "配当バリュー成長", "count": int(len(d)), "items": _records(d)},
-        },
+        "screens": screens_dict,
         "notes": {
+            "sougou": "総合点 = アークランド式A〜E評価40% + 成長割安(CAGR/ROE/増収増益予想)25% + バリュエーション(PER/利回り)20% + 資産価値(保守NC比率)15%。2期連続減益は-8点。",
             "kiyohara": "ランキングは保守的NC比率=(現金100%+有価証券100%+売掛85%+在庫50%+その他流動50%+投資有価証券70%−総負債)÷時価総額。2期連続減益は−40点、営業利益率2%未満は−20点。",
             "data": "出所: J-Quants (Standard)。PERの「予」は会社予想EPS、「実」は直近実績EPSベース。",
         },
     }
     with open(path, "w") as f:
         json.dump(out, f, ensure_ascii=False)
-    print(f"screens: 弐億貯男式={len(n)} 清原式={len(k)} 配当={len(d)} universe={len(df)}",
-          flush=True)
+    print(f"screens: 総合={len(sg)} 弐億貯男式={len(n)} 清原式={len(k)} 配当={len(d)} "
+          f"universe={len(df)}", flush=True)
     return out

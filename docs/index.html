@@ -153,6 +153,7 @@ footer{color:var(--sub);font-size:11px;padding:0 18px 34px}
     <span class="bword">FUNDA<span>LAB</span></span>
   </div>
   <div class="dttl">スクリーニング</div>
+  <button class="mi" data-v="sougou" onclick="go('sougou')">総合(三式ミックス)</button>
   <button class="mi" data-v="niokutameo" onclick="go('niokutameo')">弐億貯男式</button>
   <button class="mi" data-v="kiyohara" onclick="go('kiyohara')">清原式</button>
   <button class="mi" data-v="dividend" onclick="go('dividend')">配当バリュー成長</button>
@@ -186,7 +187,7 @@ PERの「予」は会社予想EPS・「実」は直近実績EPSベース。</foo
 </main>
 <div id="chartpop"></div>
 <script>
-let DATA=null, ANALYSIS=null, ARTICLES=null, COMMENTS=null, CHARTS=null, view='niokutameo';
+let DATA=null, ANALYSIS=null, ARTICLES=null, COMMENTS=null, CHARTS=null, view='sougou';
 let hoverTimer=null;
 const MAS=[[5,'#10b981'],[25,'#f59e0b'],[50,'#8b5cf6'],[100,'#ec4899'],[200,'#64748b']];
 function maSeries(cAll,off,n,period){
@@ -254,8 +255,8 @@ document.addEventListener('click',e=>{
   const pop=document.getElementById('chartpop');
   if(pop.classList.contains('show')&&!pop.contains(e.target)&&!e.target.classList.contains('cbtn'))hideChart();
 });
-const VT={niokutameo:'弐億貯男式',kiyohara:'清原式',dividend:'配当バリュー成長',
-          analysis:'A〜E分析',articles:'記事',watch:'ウォッチリスト'};
+const VT={sougou:'総合(三式ミックス)',niokutameo:'弐億貯男式',kiyohara:'清原式',
+          dividend:'配当バリュー成長',analysis:'A〜E分析',articles:'記事',watch:'ウォッチリスト'};
 let UNIVERSE=null, ALERTS=null;
 function watchList(){try{return JSON.parse(localStorage.getItem('watchSet')||'[]')}catch(e){return []}}
 function isWatched(c){return watchList().includes(c)}
@@ -315,7 +316,7 @@ function card(r,i){
   const kab=`https://kabutan.jp/stock/?code=${r.code4}`;
   const buf=`https://www.buffett-code.com/company/${r.code4}/`;
   return `<div class="card" onclick="if(event.target.tagName!=='A')this.classList.toggle('open')">
-  <div class="row1"><div class="nm" onmouseenter="hoverChart('${r.code4}','${(r.name||'').replace(/'/g,'')}',this)" onmouseleave="unhoverChart()">${i+1}. ${r.name||''}<span class="cd">${r.code4} ・ ${r.sector||''}</span><button class="cbtn" onclick="showChart('${r.code4}','${(r.name||'').replace(/'/g,'')}',this,event)">📈</button><button class="cbtn wbtn ${isWatched(r.code4)?'on':''}" onclick="toggleWatch('${r.code4}',event)">★</button></div>
+  <div class="row1"><div class="nm" onmouseenter="hoverChart('${r.code4}','${(r.name||'').replace(/'/g,'')}',this)" onmouseleave="unhoverChart()">${i+1}. ${r.name||''}${r.is_new?'<span class="newb">NEW</span>':''}<span class="cd">${r.code4} ・ ${r.sector||''}</span><button class="cbtn" onclick="showChart('${r.code4}','${(r.name||'').replace(/'/g,'')}',this,event)">📈</button><button class="cbtn wbtn ${isWatched(r.code4)?'on':''}" onclick="toggleWatch('${r.code4}',event)">★</button></div>
     <div class="score">${fmt(r.score)}</div></div>
   <div class="row2">
     <span class="kv"><span class="l">株価</span> <b>${fmt(r.price)}</b></span>
@@ -333,6 +334,7 @@ function card(r,i){
     <div class="hist">EPS推移: ${r.eps_hist&&r.eps_hist.length?r.eps_hist.join(' → '):'—'}</div>
     <div class="hist">配当推移: ${r.dps_hist&&r.dps_hist.length?r.dps_hist.join(' → '):'—'}</div>
     <div class="hist">売上(億): ${r.sales_hist&&r.sales_hist.length?r.sales_hist.join(' → '):'—'} ・ 営利(億): ${r.op_hist&&r.op_hist.length?r.op_hist.join(' → '):'—'}</div>
+    ${r.sg_arc!==null&&r.sg_arc!==undefined?`<div class="hist">総合内訳: A〜E評価 ${r.sg_arc} ・ 成長 ${r.sg_growth} ・ 割安 ${r.sg_value} ・ 資産 ${r.sg_asset} (各100点満点)</div>`:''}
     ${commentBlock(r.code4)}
     <div class="links" style="margin-top:6px">
       <a href="${kab}" target="_blank" rel="noopener">株探</a>
@@ -354,7 +356,7 @@ function analysisCard(r,i){
   const buf=`https://www.buffett-code.com/company/${r.code4}/`;
   const danger=r.danger&&r.danger.length?`<div class="chips">${r.danger.map(d=>`<span class="chip b">⚠${d}</span>`).join('')}</div>`:'';
   return `<div class="card" onclick="if(event.target.tagName!=='A')this.classList.toggle('open')">
-  <div class="row1"><div class="nm" onmouseenter="hoverChart('${r.code4}','${(r.name||'').replace(/'/g,'')}',this)" onmouseleave="unhoverChart()">${i+1}. ${r.name||''}<span class="cd">${r.code4} ・ ${r.sector||''}</span><button class="cbtn" onclick="showChart('${r.code4}','${(r.name||'').replace(/'/g,'')}',this,event)">📈</button><button class="cbtn wbtn ${isWatched(r.code4)?'on':''}" onclick="toggleWatch('${r.code4}',event)">★</button></div>
+  <div class="row1"><div class="nm" onmouseenter="hoverChart('${r.code4}','${(r.name||'').replace(/'/g,'')}',this)" onmouseleave="unhoverChart()">${i+1}. ${r.name||''}${r.is_new?'<span class="newb">NEW</span>':''}<span class="cd">${r.code4} ・ ${r.sector||''}</span><button class="cbtn" onclick="showChart('${r.code4}','${(r.name||'').replace(/'/g,'')}',this,event)">📈</button><button class="cbtn wbtn ${isWatched(r.code4)?'on':''}" onclick="toggleWatch('${r.code4}',event)">★</button></div>
     <div class="score">${r.composite}</div></div>
   ${gradeChips(r.grades)}
   ${danger}
@@ -470,11 +472,11 @@ function render(){
     return;
   }
   if(!DATA)return;
-  const s=DATA.screens[view];
+  const s=DATA.screens[view]||{items:[],count:0};
   let items=s.items;
   if(q)items=items.filter(r=>((r.name||'')+(r.code4||'')+(r.sector||'')).toLowerCase().includes(q));
   document.getElementById('count').textContent=`${items.length}/${s.count}件`;
-  document.getElementById('note').textContent=(DATA.notes&&view==='kiyohara')?DATA.notes.kiyohara:'';
+  document.getElementById('note').textContent=(DATA.notes&&DATA.notes[view])?DATA.notes[view]:'';
   document.getElementById('list').innerHTML=
     items.length?items.map(card).join(''):'<div class="empty">条件に合致する銘柄がありません</div>';
 }
