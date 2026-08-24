@@ -71,6 +71,47 @@ def _latest_forecast(grp_all: pd.DataFrame) -> dict:
     return out
 
 
+def _quarter_check(grp_all: pd.DataFrame, fy_end: str) -> dict:
+    """当期の直近四半期(累計)の営業損益・前年同期比・季節性を判定。"""
+    out = {"q_type": None, "q_op_oku": None, "q_loss": None,
+           "q_seasonal": None, "q_yoy_down": None}
+    if grp_all is None or not len(grp_all):
+        return out
+    q = grp_all[grp_all["CurPerType"].astype(str).isin(["1Q", "2Q", "3Q"])].copy()
+    q = q[q["DocType"].astype(str).str.contains("FinancialStatements", na=False)]
+    q = q[~q["DocType"].astype(str).str.contains("REIT", na=False)]
+    if not len(q):
+        return out
+    q = q.sort_values(["CurPerEn", "DiscDate"]).drop_duplicates(
+        subset=["CurPerEn"], keep="last")
+    latest = q.iloc[-1]
+    # 直近FY期末より後の四半期のみ(=進行中の期)
+    if str(latest["CurPerEn"])[:10] <= fy_end:
+        return out
+    q_op = _num(latest["OP"])
+    q_np = _num(latest["NP"])
+    out["q_type"] = str(latest["CurPerType"])
+    out["q_op_oku"] = round(q_op / OKU, 1) if q_op is not None else None
+    basis = q_op if q_op is not None else q_np
+    if basis is not None:
+        out["q_loss"] = bool(basis < 0)
+    # 前年同期(同じCurPerType・約1年前の期末)
+    try:
+        end = pd.Timestamp(latest["CurPerEn"])
+        prior = q[(q["CurPerType"] == latest["CurPerType"])
+                  & (pd.to_datetime(q["CurPerEn"]) < end - pd.Timedelta(days=270))
+                  & (pd.to_datetime(q["CurPerEn"]) > end - pd.Timedelta(days=430))]
+    except Exception:
+        prior = q.iloc[0:0]
+    if len(prior):
+        p_op = _num(prior.iloc[-1]["OP"])
+        if p_op is not None and basis is not None:
+            out["q_yoy_down"] = bool(basis < p_op)
+            if out["q_loss"]:
+                out["q_seasonal"] = bool(p_op < 0)
+    return out
+
+
 def _cagr(s: pd.Series) -> float | None:
     s = s.dropna()
     s = s[s > 0]
@@ -142,6 +183,9 @@ def compute_metrics(stmts, listed, prices, divs=None) -> pd.DataFrame:
             "sales_hist": [round(float(x) / OKU, 1) for x in sales.dropna().tolist()][-5:],
             "op_hist": [round(float(x) / OKU, 1) for x in op.dropna().tolist()][-5:],
         }
+
+        # 直近四半期チェック (Q赤字・前年同期比・通期進捗)
+        m.update(_quarter_check(all_by_code.get(code), str(latest["CurPerEn"])[:10]))
 
         # 2期連続減益(営業利益)の検出
         o = op.dropna()
@@ -409,6 +453,7 @@ OUT_COLS = ["code", "code4", "name", "sector", "scale", "mkt", "price", "mcap_ok
             "sales_cagr3", "op_cagr3", "op_margin", "roe", "eqar", "cfo_pos",
             "cash_ratio", "netnet_lite", "netcash_ratio", "netcash_cons",
             "op_declining", "seisan_oku", "edinet_end",
+            "q_type", "q_op_oku", "q_loss", "q_seasonal", "q_yoy_down",
             "arc_comp", "sg_arc", "sg_growth", "sg_value", "sg_asset",
             "eps_uptrend", "div_no_cut", "div_up", "fcst_zoshu", "fcst_zoeki",
             "f_sales_oku", "f_op_oku", "f_eps",

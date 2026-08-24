@@ -387,6 +387,8 @@ function chips(r){
   if(r.cfo_pos===false)c.push(['営業CF赤字','b']);
   if(r.netcash_ratio!==null&&r.netcash_ratio!==undefined&&r.netcash_ratio>=100)c.push(['実質キャッシュ>時価総額','g']);
   if(r.op_declining)c.push(['⚠2期連続減益','b']);
+  if(r.q_loss)c.push([`⚠直近${r.q_type||'Q'}営業赤字${r.q_seasonal?'(例年同様)':''}`,r.q_seasonal?'w':'b']);
+  else if(r.q_yoy_down)c.push([`直近${r.q_type||'Q'}前年割れ`,'w']);
   if(COMMENTS&&COMMENTS.items&&COMMENTS.items[r.code4])c.push(['📝解説あり','g']);
   return c.map(x=>`<span class="chip ${x[1]}">${x[0]}</span>`).join('');
 }
@@ -414,6 +416,7 @@ function card(r,i){
     <div class="hist">配当推移: ${r.dps_hist&&r.dps_hist.length?r.dps_hist.join(' → '):'—'}</div>
     <div class="hist">売上(億): ${r.sales_hist&&r.sales_hist.length?r.sales_hist.join(' → '):'—'} ・ 営利(億): ${r.op_hist&&r.op_hist.length?r.op_hist.join(' → '):'—'}</div>
     ${r.sg_arc!==null&&r.sg_arc!==undefined?`<div class="hist">総合内訳: A〜E評価 ${r.sg_arc} ・ 成長 ${r.sg_growth} ・ 割安 ${r.sg_value} ・ 資産 ${r.sg_asset} (各100点満点)</div>`:''}
+    ${r.q_type?`<div class="hist">直近四半期(${r.q_type}累計): 営利 ${fmt(r.q_op_oku,'億')}${r.f_op_oku&&r.q_op_oku>0?` ・ 通期予想${r.f_op_oku}億に対し進捗${Math.round(r.q_op_oku/r.f_op_oku*100)}%`:''}</div>`:''}
     ${commentBlock(r.code4)}
     <div class="links" style="margin-top:6px">
       ${deepLink(r.code4,r.name)}
