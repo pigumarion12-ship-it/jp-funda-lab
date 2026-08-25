@@ -1,22 +1,29 @@
-listed: 4444
+listed: 4443
 prices: 1 days to fetch
-prices 0/1 2026-08-24 rows=4444
-prices: 1628856
+prices 0/1 2026-08-25 rows=4443
+prices: 1628891
 stmts: 3 days to fetch
 stmts 0/3 2022-12-30 rows=0
-stmts: 104668
-edinet: 0 days to fetch
-edinet_fin: 5971 docs
-articles sbi_em_weekly: fetched=305 known=305 (auto=True)
-articles shikiho_kinouchi: fetched=108 known=112 (auto=True)
-articles toshiru_smallcap: fetched=100 known=106 (auto=True)
-articles kabutan_selection: fetched=34 known=37 (auto=True)
-articles kabutan_tokusyu: fetched=100 known=181 (auto=True)
+stmts: 104679
+edinet: 1 days to fetch
+edinet 1/1 2026-08-24 docs=6 total_new=6
+edinet_fin: 5977 docs
+gnews error ("新興株ウィークリー" site:go.sbisec.co.jp): 503 Server Error: Service Unavailable for url: https://news.google.com/rss/search?q=%22%E6%96%B0%E8%
+articles sbi_em_weekly: fetched=205 known=305 (auto=True)
+gnews error ("木野内栄治" site:shikiho.toyokeizai.net): 503 Server Error: Service Unavailable for url: https://news.google.com/rss/search?q=%22%E6%9C%A8%E9%
+gnews error ("木野内栄治" site:toyokeizai.net): 503 Server Error: Service Unavailable for url: https://news.google.com/rss/search?q=%22%E6%9C%A8%E9%
+articles shikiho_kinouchi: fetched=0 known=112 (auto=False)
+gnews error ("中小型株" site:media.rakuten-sec.net): 503 Server Error: Service Unavailable for url: https://news.google.com/rss/search?q=%22%E4%B8%AD%E5%
+articles toshiru_smallcap: fetched=0 known=106 (auto=False)
+gnews error (site:selection.kabutan.jp): 503 Server Error: Service Unavailable for url: https://news.google.com/rss/search?q=site%3Aselection
+articles kabutan_selection: fetched=0 known=37 (auto=False)
+gnews error ("特集" site:kabutan.jp): 503 Server Error: Service Unavailable for url: https://news.google.com/rss/search?q=%22%E7%89%B9%E9%
+articles kabutan_tokusyu: fetched=0 known=181 (auto=False)
 articles.json: 125 items total
-metrics: 3693 codes
+metrics: 3692 codes
 edinet coverage: codes=3913 {'cash': 3912, 'cur_assets': 3856, 'liabilities': 3913, 'inv_sec': 3394, 'borrowings': 3913, 'inventories': 2740}
-analysis: graded=3690 edinet_matched=3623
-screens: 総合=1293 弐億貯男式=112 清原式=301 配当=587 universe=3693
+analysis: graded=3689 edinet_matched=3622
+screens: 総合=1288 弐億貯男式=114 清原式=303 配当=585 universe=3692
 charts: 144 codes
-universe: 3693 codes
-alerts: 194 codes with events
+universe: 3692 codes
+alerts: 235 codes with events
