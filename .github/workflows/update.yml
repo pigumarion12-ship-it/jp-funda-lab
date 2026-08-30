@@ -11,9 +11,6 @@ on:
         description: "EDINET取得日数 (mode=edinet/all時。既定10)"
         required: false
         default: ""
-  schedule:
-    # 平日 20:30 JST = 11:30 UTC (月-金)
-    - cron: "30 11 * * 1-5"
 
 permissions:
   contents: write
