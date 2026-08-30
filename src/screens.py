@@ -55,7 +55,7 @@ def _fy_rows(stmts: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-FC_COLS = ["FSales", "FOP", "FNP", "FEPS", "FDivAnn", "FPayoutRatioAnn"]
+FC_COLS = ["FSales", "FOP", "FOdP", "FNP", "FEPS", "FDivAnn", "FPayoutRatioAnn"]
 
 
 def _latest_forecast(grp_all: pd.DataFrame) -> dict:
