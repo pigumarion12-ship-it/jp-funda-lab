@@ -62,6 +62,10 @@ def main():
         edinet_update()
     elif cmd == "articles":
         articles.update()
+    elif cmd == "kabuzaru":
+        from src import kabuzaru
+        prices, stmts, listed, _ = data.load_all()
+        kabuzaru.compute(stmts, listed, prices)
     elif cmd == "build":
         build()
     elif cmd == "all":
