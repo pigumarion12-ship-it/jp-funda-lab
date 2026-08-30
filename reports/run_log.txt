@@ -1,1 +1,1 @@
-kabuzaru: universe=3099 10基準全クリア=0
+kabuzaru: universe=3099 10基準全クリア=48
