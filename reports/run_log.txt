@@ -1,4 +1,4 @@
-adjust_splits: 14 件の分割/併合を自前調整
+adjust_splits: 67 件の分割/併合を自前調整
 metrics: 3689 codes
 edinet coverage: codes=3917 {'cash': 3916, 'cur_assets': 3860, 'liabilities': 3917, 'inv_sec': 3399, 'borrowings': 3917, 'inventories': 2740}
 analysis: graded=3686 edinet_matched=3623
