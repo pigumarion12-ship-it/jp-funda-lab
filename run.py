@@ -43,10 +43,13 @@ def build():
     arc = {k: v.get("cp") for k, v in out2["byCode"].items()}
     df["arc_comp"] = df["code4"].map(arc)
     out1 = screens.build_output(df)
+    from src import kabuzaru
+    out3 = kabuzaru.compute(stmts, listed, prices, path="docs/data/kabuzaru.json")
     shown4 = set()
     for s in out1["screens"].values():
         shown4 |= {it["code4"] for it in s["items"]}
     shown4 |= {it["code4"] for it in out2["items"]}
+    shown4 |= {it["code4"] for it in out3["items"]}
     code_map = dict(zip(df["code4"], df["code"]))
     codes5 = {code_map[c] for c in shown4 if c in code_map}
     screens.build_charts(prices, codes5)
@@ -65,7 +68,7 @@ def main():
     elif cmd == "kabuzaru":
         from src import kabuzaru
         prices, stmts, listed, _ = data.load_all()
-        kabuzaru.compute(stmts, listed, prices)
+        kabuzaru.compute(stmts, listed, prices, path="docs/data/kabuzaru.json")
     elif cmd == "build":
         build()
     elif cmd == "all":

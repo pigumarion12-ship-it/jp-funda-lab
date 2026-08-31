@@ -175,6 +175,7 @@ footer{color:var(--sub);font-size:11px;padding:0 18px 34px}
   <button class="mi" data-v="niokutameo" onclick="go('niokutameo')">弐億貯男式</button>
   <button class="mi" data-v="kiyohara" onclick="go('kiyohara')">清原式</button>
   <button class="mi" data-v="dividend" onclick="go('dividend')">配当バリュー成長</button>
+  <button class="mi" data-v="kabuzaru" onclick="go('kabuzaru')">株猿式 (10基準)</button>
   <div class="dttl">分析</div>
   <button class="mi" data-v="analysis" onclick="go('analysis')">A〜E分析</button>
   <div class="dttl">読む</div>
@@ -275,7 +276,49 @@ document.addEventListener('click',e=>{
   if(pop.classList.contains('show')&&!pop.contains(e.target)&&!e.target.classList.contains('cbtn'))hideChart();
 });
 const VT={sougou:'総合(三式ミックス)',niokutameo:'弐億貯男式',kiyohara:'清原式',
-          dividend:'配当バリュー成長',analysis:'A〜E分析',articles:'記事',watch:'ウォッチリスト'};
+          dividend:'配当バリュー成長',kabuzaru:'株猿式 (10基準)',analysis:'A〜E分析',articles:'記事',watch:'ウォッチリスト'};
+let KABU=null;
+function kabuCard(r,i){
+  const nm=(r.name||'').replace(/'/g,'');
+  const ten=Object.entries(r.ten||{}).map(([k,v])=>`<span class="chip ${v?'g':'w'}">${v?'✓':'✗'}${k}</span>`).join('');
+  const g=(a)=>a&&a.length===2?`${a[0]===null?'—':(a[0]>=0?'+':'')+a[0]+'%'} → 今期予想 ${a[1]===null?'—':(a[1]>=0?'+':'')+a[1]+'%'}`:'—';
+  return `<div class="card" onclick="if(event.target.tagName!=='A')this.classList.toggle('open')">
+  <div class="row1"><div class="nm" onmouseenter="hoverChart('${r.code4}','${nm}',this)" onmouseleave="unhoverChart()">${i+1}. ${r.name||''}<span class="cd">${r.code4} ・ ${r.sector||''}</span><button class="cbtn" onclick="showChart('${r.code4}','${nm}',this,event)">📈</button><button class="cbtn wbtn ${isWatched(r.code4)?'on':''}" onclick="toggleWatch('${r.code4}',event)">★</button></div>
+    <div class="score">${r.ten_ok}/10 <span class="cd">${r.score80}点</span></div></div>
+  <div class="row2">
+    <span class="kv"><span class="l">時価総額</span> <b>${yen(r.mcap_oku)}</b></span>
+    <span class="kv"><span class="l">PER</span> <b>${fmt(r.per)}</b><span class="l">予</span></span>
+    <span class="kv"><span class="l">営利率</span> <b>${fmt(r.opm,'%')}</b></span>
+    <span class="kv"><span class="l">ROE</span> <b>${fmt(r.roe,'%')}</b></span>
+    <span class="kv"><span class="l">ROA</span> <b>${fmt(r.roa,'%')}</b></span>
+    <span class="kv"><span class="l">自己資本比率</span> <b>${fmt(r.eqar,'%')}</b></span>
+  </div>
+  <div class="chips">${ten}</div>
+  ${miniGrades(r.code4)}${deepChips(r.code4)}
+  <div class="detail">
+    <div>売上成長: 前期 ${g(r.sales_g)}</div>
+    <div>営利成長: 前期 ${g(r.op_g)}</div>
+    <div class="hist">スコア内訳(各20点): 成長性 ${r.growth} ・ 収益性 ${r.prof} ・ 財務 ${r.fin} ・ 市場評価 ${r.mkt}${r.hi_zone?' (半年高値圏)':''} ／ カタリスト軸は定性のため未採点</div>
+    ${commentBlock(r.code4)}
+    <div class="links" style="margin-top:6px">
+      ${deepLink(r.code4,r.name)}
+      <a href="https://kabutan.jp/stock/?code=${r.code4}" target="_blank" rel="noopener">株探</a>
+      <a href="https://www.buffett-code.com/company/${r.code4}/" target="_blank" rel="noopener">バフェットコード</a>
+      <a href="https://kabuyoho.ifis.co.jp/index.php?action=tp1&sa=report&bcode=${r.code4}" target="_blank" rel="noopener">アナリスト予想</a>
+      <a href="https://www.tradingview.com/chart/?symbol=TSE%3A${r.code4}" target="_blank" rel="noopener">チャート</a>
+    </div>
+  </div></div>`;
+}
+function renderKabu(){
+  document.getElementById('toolbar').style.display='';
+  document.getElementById('note').textContent='株猿式: 売上/営利/経常/純利の10%成長(前期実績・今期予想の両方)、3期連続増収増益、減益予想なし、営利率10%+、ROE10%+、ROA5%+、営業CF+ の10基準。点数は成長性/収益性/財務/市場評価の4軸(各20点)。';
+  if(!KABU){document.getElementById('list').innerHTML='<div class="empty">株猿式データはまだありません(次回ビルドで生成)</div>';document.getElementById('count').textContent='';return;}
+  const q=document.getElementById('q').value.trim().toLowerCase();
+  let items=KABU.items;
+  if(q)items=items.filter(r=>((r.name||'')+(r.code4||'')+(r.sector||'')).toLowerCase().includes(q));
+  document.getElementById('count').textContent=`全クリア${KABU.ten_all}社 / 表示${items.length}件`;
+  document.getElementById('list').innerHTML=items.length?items.map(kabuCard).join(''):'<div class="empty">該当なし</div>';
+}
 let UNIVERSE=null, ALERTS=null;
 function watchList(){try{return JSON.parse(localStorage.getItem('watchSet')||'[]')}catch(e){return []}}
 function isWatched(c){return watchList().includes(c)}
@@ -547,6 +590,7 @@ function render(){
   document.querySelectorAll('.mi[data-v]').forEach(e=>e.classList.toggle('active',e.dataset.v===view));
   document.getElementById('vtitle').textContent=VT[view]||'ファンダ・ラボ';
   if(view==='watch'){renderWatch();document.getElementById('count').textContent='';return;}
+  if(view==='kabuzaru'){renderKabu();return;}
   if(view==='articles'){renderArticles();document.getElementById('count').textContent='';return;}
   document.getElementById('toolbar').style.display='';
   const q=document.getElementById('q').value.trim().toLowerCase();
@@ -581,6 +625,7 @@ fetch('data/latest.json?'+Date.now()).then(r=>{if(!r.ok)throw 0;return r.json()}
 });
 fetch('data/analysis.json?'+Date.now()).then(r=>r.ok?r.json():null).then(a=>{ANALYSIS=a;render();}).catch(()=>{});
 fetch('data/deep/index.json?'+Date.now()).then(r=>r.ok?r.json():null).then(d=>{DEEP=d;render();}).catch(()=>{});
+fetch('data/kabuzaru.json?'+Date.now()).then(r=>r.ok?r.json():null).then(k=>{KABU=k;if(view==='kabuzaru')render();}).catch(()=>{});
 fetch('data/articles.json?'+Date.now()).then(r=>r.ok?r.json():null).then(a=>{ARTICLES=a;if(view==='articles')render();}).catch(()=>{});
 fetch('data/comments.json?'+Date.now()).then(r=>r.ok?r.json():null).then(c=>{COMMENTS=c;render();}).catch(()=>{});
 fetch('data/charts.json?'+Date.now()).then(r=>r.ok?r.json():null).then(c=>{CHARTS=c;}).catch(()=>{});
