@@ -9,6 +9,7 @@ import os
 import re
 import time
 import datetime as dt
+import numpy as np
 import pandas as pd
 
 REQ_INTERVAL = float(os.environ.get("JQ_REQ_INTERVAL", "1.2"))  # 秒/リクエスト
@@ -194,6 +195,45 @@ def update_dividends(cli) -> pd.DataFrame:
     """配当API(get_fin_dividend)はStandardプラン対象外(403実測)。
     年間配当は fin_summary の DivAnn/FDivAnn で代替できるため取得しない。"""
     return pd.DataFrame()
+
+
+SPLIT_RATIOS = [1 / n for n in (2, 3, 4, 5, 6, 8, 10)] + [n for n in (2, 3, 4, 5, 10)]
+
+
+def adjust_splits(prices: pd.DataFrame, tol: float = 0.035) -> pd.DataFrame:
+    """データ源の遡及調整前でも整合するよう、株式分割/併合を自前で検知して過去分を調整。
+    前日比が 1/2,1/3,1/4,1/5,1/6,1/8,1/10 (併合は2〜10倍) に±3.5%で一致する日を
+    分割日とみなし、それ以前の株価(始値/高値/安値/終値)に比率を掛け、出来高を割る。"""
+    if not len(prices):
+        return prices
+    prices = prices.sort_values(["Code", "Date"]).reset_index(drop=True)
+    cols = [c for c in ("AdjO", "AdjH", "AdjL", "AdjC") if c in prices.columns]
+    n_fix = 0
+    out = []
+    for code, g in prices.groupby("Code", sort=False):
+        c = g["AdjC"].to_numpy(dtype=float)
+        if len(c) < 3:
+            out.append(g)
+            continue
+        ratio = c[1:] / np.where(c[:-1] == 0, np.nan, c[:-1])
+        g = g.copy()
+        for i, r in enumerate(ratio):
+            if not np.isfinite(r):
+                continue
+            for target in SPLIT_RATIOS:
+                if abs(r / target - 1) <= tol:
+                    idx = i + 1  # 分割後の最初の行
+                    factor = target
+                    for col in cols:
+                        g.iloc[:idx, g.columns.get_loc(col)] = g[col].iloc[:idx] * factor
+                    if "AdjVo" in g.columns:
+                        g.iloc[:idx, g.columns.get_loc("AdjVo")] = g["AdjVo"].iloc[:idx] / factor
+                    n_fix += 1
+                    break
+        out.append(g)
+    if n_fix:
+        print(f"adjust_splits: {n_fix} 件の分割/併合を自前調整", flush=True)
+    return pd.concat(out, ignore_index=True)
 
 
 def load_all():

@@ -31,6 +31,7 @@ def edinet_update():
 
 def build():
     prices, stmts, listed, _ = data.load_all()
+    prices = data.adjust_splits(prices)
     screens.dump_schema(stmts, listed, None, prices)
     if not len(stmts) or not len(prices):
         print("キャッシュ不足のためbuildスキップ", flush=True)
@@ -70,6 +71,7 @@ def main():
     elif cmd == "kabuzaru":
         from src import kabuzaru
         prices, stmts, listed, _ = data.load_all()
+        prices = data.adjust_splits(prices)
         kabuzaru.compute(stmts, listed, prices, path="docs/data/kabuzaru.json")
     elif cmd == "build":
         build()
