@@ -148,9 +148,10 @@ def compute(stmts, listed, prices, path="docs/data/duke.json"):
         sales = pd.to_numeric(grp["Sales"], errors="coerce")
         fy_margin_up = None
         if len(grp) >= 2:
-            m1 = _num(latest["OdP"]) / _num(latest["Sales"]) if _num(latest["Sales"]) else None
-            p = grp.iloc[-2]
-            m0 = _num(p["OdP"]) / _num(p["Sales"]) if _num(p["Sales"]) else None
+            def _margin(row):
+                o, s = _num(row["OdP"]), _num(row["Sales"])
+                return o / s if (o is not None and s) else None
+            m1, m0 = _margin(latest), _margin(grp.iloc[-2])
             if m1 is not None and m0 is not None:
                 fy_margin_up = bool(m1 > m0)
         chk_margin = bool(fy_margin_up or q_margin_up)
