@@ -197,7 +197,7 @@ def update_dividends(cli) -> pd.DataFrame:
     return pd.DataFrame()
 
 
-SPLIT_RATIOS = [1 / n for n in (2, 3, 4, 5, 6, 8, 10)] + [n for n in (2, 3, 4, 5, 10)]
+
 
 
 def adjust_splits(prices: pd.DataFrame, tol: float = 0.035) -> pd.DataFrame:
@@ -220,16 +220,24 @@ def adjust_splits(prices: pd.DataFrame, tol: float = 0.035) -> pd.DataFrame:
         for i, r in enumerate(ratio):
             if not np.isfinite(r):
                 continue
-            for target in SPLIT_RATIOS:
-                if abs(r / target - 1) <= tol:
-                    idx = i + 1  # 分割後の最初の行
-                    factor = target
-                    for col in cols:
-                        g.iloc[:idx, g.columns.get_loc(col)] = g[col].iloc[:idx] * factor
-                    if "AdjVo" in g.columns:
-                        g.iloc[:idx, g.columns.get_loc("AdjVo")] = g["AdjVo"].iloc[:idx] / factor
-                    n_fix += 1
-                    break
+            # 東証の値幅制限では1日で-35%超/+60%超は起きないため、
+            # それを超える前日比は分割(または併合)とみなし整数比に丸めて調整する
+            factor = None
+            if r <= 0.67:
+                n = int(round(1 / r))
+                if 2 <= n <= 20:
+                    factor = 1 / n
+            elif r >= 1.6:
+                n = int(round(r))
+                if 2 <= n <= 20:
+                    factor = float(n)
+            if factor is not None:
+                idx = i + 1  # 分割後の最初の行
+                for col in cols:
+                    g.iloc[:idx, g.columns.get_loc(col)] = g[col].iloc[:idx] * factor
+                if "AdjVo" in g.columns:
+                    g.iloc[:idx, g.columns.get_loc("AdjVo")] = g["AdjVo"].iloc[:idx] / factor
+                n_fix += 1
         out.append(g)
     if n_fix:
         print(f"adjust_splits: {n_fix} 件の分割/併合を自前調整", flush=True)
