@@ -141,10 +141,14 @@ def update_prices(cli) -> pd.DataFrame:
     start = today - dt.timedelta(days=PRICE_LOOKBACK_DAYS)
 
     old, fetched = None, set()
-    if os.path.exists(PRICES_PQ):
+    # 株式分割の遡及調整を取り込むため、PRICE_FULL_REFRESH=1 なら全量取り直し
+    full_refresh = os.environ.get("PRICE_FULL_REFRESH", "") not in ("", "0", "false")
+    if os.path.exists(PRICES_PQ) and not full_refresh:
         old = pd.read_parquet(PRICES_PQ)
         old = old[old["Date"] >= start.isoformat()]
         fetched = set(old["Date"].unique())
+    elif full_refresh:
+        print("prices: 全量再取得モード(分割調整を反映)", flush=True)
 
     frames = [old] if old is not None else []
     new_days = [d for d in _biz_days(cli, start, today) if d not in fetched]

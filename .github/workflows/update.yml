@@ -11,6 +11,10 @@ on:
         description: "EDINET取得日数 (mode=edinet/all時。既定10)"
         required: false
         default: ""
+      full_prices:
+        description: "株価を全量取り直す(分割調整反映)なら 1"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -46,6 +50,7 @@ jobs:
           EDINET_API_KEY: ${{ secrets.EDINET_API_KEY }}
           MODE: ${{ inputs.mode }}
           BACKFILL_DAYS: ${{ inputs.backfill_days }}
+          PRICE_FULL_REFRESH: ${{ inputs.full_prices }}
         run: |
           mkdir -p reports
           set -o pipefail
