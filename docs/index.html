@@ -296,7 +296,7 @@ const VT={sougou:'総合(三式ミックス)',niokutameo:'弐億貯男式',kiyoh
           dividend:'配当バリュー成長',kabuzaru:'株猿式 (10基準)',duke:'DUKE式 (新高値)',analysis:'A〜E分析',articles:'記事',watch:'ウォッチリスト',trades:'トレードノート'};
 let TRADES=null, TCH=null;
 function localFills(){try{return JSON.parse(localStorage.getItem('localFills')||'[]')}catch(e){return []}}
-function fillKey(f){return `${f.broker}|${f.date}|${f.code4}|${f.side}|${f.qty}|${f.price}`}
+function fillKey(f){return `${f.broker}|${f.date}|${f.code4}|${f.side}|${f.qty}|${f.price}|${f.seq||0}`}
 function allFills(){
   const seen=new Set(),out=[];
   for(const f of [...(TRADES&&TRADES.fills||[]),...localFills()]){
@@ -334,6 +334,7 @@ function parseBrokerCsv(text,broker){
   for(const[k,cands]of Object.entries(CSVCAND)){idx[k]=null;
     outer:for(const c of cands)for(let i=0;i<header.length;i++)if(header[i].includes(c)){idx[k]=i;break outer;}}
   const fills=[];
+  const seqM={}; // 同条件の実約定(PTS同値約定など)をファイル内連番で区別
   for(const row of rows.slice(hi+1)){
     const get=k=>idx[k]!==null&&idx[k]<row.length?csvNorm(row[idx[k]]):'';
     const dm=get('date').match(/(\d{4})[\/\-年](\d{1,2})[\/\-月](\d{1,2})/);
@@ -344,6 +345,8 @@ function parseBrokerCsv(text,broker){
     if(!(date&&side&&qty&&price&&cm))continue;
     const f={broker,date,code4:cm[1],name:get('name').replace(/\b\d{3}[0-9A-Z]\b/,'').trim()||null,
       side,qty,price,fee:(csvNum(get('fee'))||0)+(csvNum(get('tax'))||0),account:get('account')||null};
+    const bk=`${f.broker}|${f.date}|${f.code4}|${f.side}|${f.qty}|${f.price}`;
+    const sn=seqM[bk]||0;seqM[bk]=sn+1;if(sn)f.seq=sn;
     f.id='L'+jhash(fillKey(f));
     fills.push(f);
   }

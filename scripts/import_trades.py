@@ -115,6 +115,7 @@ def parse_file(path, broker):
     if idx["date"] is None or idx["qty"] is None:
         raise SystemExit(f"必須列が見つかりません: {path}")
     fills = []
+    seq = {}  # 同一(日付,銘柄,売買,数量,単価)の実約定が複数ある場合の連番
     for row in rows[hi + 1:]:
         if not row or len(row) < 3:
             continue
@@ -135,8 +136,14 @@ def parse_file(path, broker):
             "side": side, "qty": qty, "price": price,
             "fee": round(fee + tax, 1), "account": get("account") or None,
         }
-        rec["id"] = hashlib.md5(
-            f"{broker}|{date}|{code}|{side}|{qty}|{price}".encode()).hexdigest()[:12]
+        base = f"{broker}|{date}|{code}|{side}|{qty}|{price}"
+        n = seq.get(base, 0)
+        seq[base] = n + 1
+        if n:
+            rec["seq"] = n
+        # 同ファイル内の同条件約定は連番で区別 (PTS等で同値約定が複数あるケース)。
+        # 期間が重なるCSVを再取込しても同じ連番になるので重複除外は機能する。
+        rec["id"] = hashlib.md5(f"{base}|{n}".encode()).hexdigest()[:12]
         fills.append(rec)
     return fills
 
