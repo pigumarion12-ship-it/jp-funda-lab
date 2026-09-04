@@ -8,3 +8,4 @@ duke: candidates=315 8/8=5
 charts: 251 codes
 universe: 3689 codes
 alerts: 347 codes with events
+trade_charts: 104 codes
