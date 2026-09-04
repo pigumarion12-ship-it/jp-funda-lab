@@ -297,7 +297,116 @@ document.addEventListener('click',e=>{
 });
 const VT={sougou:'総合(三式ミックス)',niokutameo:'弐億貯男式',kiyohara:'清原式',
           dividend:'配当バリュー成長',kabuzaru:'株猿式 (10基準)',duke:'DUKE式 (新高値)',analysis:'A〜E分析',articles:'記事',watch:'ウォッチリスト',trades:'トレードノート'};
-let TRADES=null;
+let TRADES=null, TCH=null;
+function localFills(){try{return JSON.parse(localStorage.getItem('localFills')||'[]')}catch(e){return []}}
+function fillKey(f){return `${f.broker}|${f.date}|${f.code4}|${f.side}|${f.qty}|${f.price}`}
+function allFills(){
+  const seen=new Set(),out=[];
+  for(const f of [...(TRADES&&TRADES.fills||[]),...localFills()]){
+    const k=fillKey(f); if(seen.has(k))continue; seen.add(k); out.push(f);
+  }
+  return out;
+}
+function jhash(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return (h>>>0).toString(16)}
+function parseCsvText(text){
+  const rows=[];let row=[],cell='',q=false;
+  for(let i=0;i<text.length;i++){const ch=text[i];
+    if(q){if(ch==='"'){if(text[i+1]==='"'){cell+='"';i++;}else q=false;}else cell+=ch;}
+    else if(ch==='"')q=true;
+    else if(ch===',' ){row.push(cell);cell='';}
+    else if(ch==='\n'||ch==='\r'){if(ch==='\r'&&text[i+1]==='\n')i++;row.push(cell);cell='';if(row.some(c=>c.trim()!==''))rows.push(row);row=[];}
+    else cell+=ch;}
+  if(cell!==''||row.length){row.push(cell);if(row.some(c=>c.trim()!==''))rows.push(row);}
+  return rows;
+}
+const CSVCAND={date:['約定日','約定日時','国内約定日','取引日','受渡日'],name:['銘柄名','銘柄','ファンド名'],
+  code:['銘柄コード','証券コード','コード'],side:['取引','売買','取引区分','売買区分','取引種類'],
+  qty:['約定数量','数量','出来数量','約定株数','株数'],price:['約定単価','単価','約定価格','平均約定単価'],
+  fee:['手数料','諸経費'],tax:['税額','税金','課税額'],account:['預り区分','口座区分','口座','預り']};
+function csvNorm(s){return (s||'').normalize('NFKC').trim()}
+function csvNum(s){s=csvNorm(s).replace(/[,円株]/g,'').replace(/[^\d.\-]/g,'');const v=parseFloat(s);return isFinite(v)?v:null}
+function parseBrokerCsv(text,broker){
+  const rows=parseCsvText(text);
+  let hi=-1,header=null;
+  for(let i=0;i<Math.min(rows.length,30);i++){
+    const j=rows[i].map(csvNorm).join('');
+    if((j.includes('約定日')||j.includes('取引日'))&&(j.includes('銘柄')||j.includes('ファンド'))&&(j.includes('数量')||j.includes('株数'))){hi=i;header=rows[i].map(csvNorm);break;}
+  }
+  if(hi<0)return {fills:[],err:'ヘッダ行が見つかりません'};
+  const idx={};
+  for(const[k,cands]of Object.entries(CSVCAND)){idx[k]=null;
+    outer:for(const c of cands)for(let i=0;i<header.length;i++)if(header[i].includes(c)){idx[k]=i;break outer;}}
+  const fills=[];
+  for(const row of rows.slice(hi+1)){
+    const get=k=>idx[k]!==null&&idx[k]<row.length?csvNorm(row[idx[k]]):'';
+    const dm=get('date').match(/(\d{4})[\/\-年](\d{1,2})[\/\-月](\d{1,2})/);
+    const date=dm?`${dm[1]}-${String(dm[2]).padStart(2,'0')}-${String(dm[3]).padStart(2,'0')}`:null;
+    const sv=get('side');const side=sv.includes('買')?'buy':(sv.includes('売')?'sell':null);
+    const qty=csvNum(get('qty')),price=csvNum(get('price'));
+    const cm=(get('code')+' '+get('name')).match(/\b(\d{4})\b/);
+    if(!(date&&side&&qty&&price&&cm))continue;
+    const f={broker,date,code4:cm[1],name:get('name').replace(/\b\d{4}\b/,'').trim()||null,
+      side,qty,price,fee:(csvNum(get('fee'))||0)+(csvNum(get('tax'))||0),account:get('account')||null};
+    f.id='L'+jhash(fillKey(f));
+    fills.push(f);
+  }
+  return {fills,err:null};
+}
+async function doImport(){
+  const inp=document.getElementById('csvIn'),broker=document.getElementById('brokerSel').value;
+  const msg=document.getElementById('impMsg');
+  if(!inp.files.length){msg.textContent='CSVファイルを選択してください';return;}
+  let added=0,total=0,errs=[];
+  const local=localFills(); const known=new Set([...allFills().map(fillKey)]);
+  for(const file of inp.files){
+    const buf=await file.arrayBuffer();
+    let text=new TextDecoder('shift_jis').decode(buf);
+    const utf=new TextDecoder().decode(buf);
+    if((text.match(/�/g)||[]).length>(utf.match(/�/g)||[]).length)text=utf;
+    const r=parseBrokerCsv(text,broker);
+    if(r.err){errs.push(`${file.name}: ${r.err}`);continue;}
+    total+=r.fills.length;
+    for(const f of r.fills){const k=fillKey(f);if(!known.has(k)){known.add(k);local.push(f);added++;}}
+  }
+  try{localStorage.setItem('localFills',JSON.stringify(local))}catch(e){errs.push('保存失敗(容量?)')}
+  render();
+  const m2=document.getElementById('impMsg');
+  if(m2)m2.textContent=`${added}件を追加しました(読取${total}件・重複除外${total-added}件)`+(errs.length?` ⚠${errs.join(' / ')}`:'');
+}
+function clearLocalFills(){if(confirm('この端末で取り込んだ分を削除しますか？(Claude経由の本体データは残ります)')){try{localStorage.removeItem('localFills')}catch(e){};render();}}
+function tradeChartSvg(t,fills){
+  const s=TCH&&TCH[t.code4];
+  if(!s)return '<div class="hist" style="margin-top:6px">この銘柄のチャートデータは次回更新時に生成されます</div>';
+  let i0=s.d.findIndex(d=>d>=t.first),i1=s.d.findIndex(d=>d>=t.date);
+  if(i1<0)i1=s.d.length-1; if(i0<0)i0=0;
+  i0=Math.max(0,i0-15); i1=Math.min(s.d.length-1,i1+15);
+  if(i1-i0<3)return '<div class="hist" style="margin-top:6px">チャート期間のデータ不足(取引が古い可能性)</div>';
+  const d=s.d.slice(i0,i1+1),o=s.o.slice(i0,i1+1),h=s.h.slice(i0,i1+1),l=s.l.slice(i0,i1+1),c=s.c.slice(i0,i1+1);
+  const W=312,H=150,P=6,N=d.length;
+  const mn=Math.min(...l),mx=Math.max(...h),rg=(mx-mn)||1;
+  const X=i=>P+(W-2*P)*(i+0.5)/N,Y=v=>H-P-(H-2*P)*(v-mn)/rg;
+  const bw=Math.max(1.2,(W-2*P)/N*0.62);
+  let sv='';
+  for(let i=0;i<N;i++){
+    const up=c[i]>=o[i],col=up?'#ef4444':'#3b82f6',x=X(i);
+    const top=Y(Math.max(o[i],c[i])),bot=Y(Math.min(o[i],c[i]));
+    sv+=`<line x1="${x.toFixed(1)}" y1="${Y(h[i]).toFixed(1)}" x2="${x.toFixed(1)}" y2="${Y(l[i]).toFixed(1)}" stroke="${col}" stroke-width="0.7"/>`;
+    sv+=`<rect x="${(x-bw/2).toFixed(1)}" y="${top.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(0.8,bot-top).toFixed(1)}" fill="${col}"/>`;
+  }
+  for(const f of fills){
+    if(f.date<d[0]||f.date>d[N-1])continue;
+    let idx=d.indexOf(f.date);
+    if(idx<0){idx=d.findIndex(x=>x>f.date);if(idx<0)continue;}
+    const x=X(idx);
+    if(f.side==='buy'){const y=Y(l[idx])+11;
+      sv+=`<polygon points="${x},${y-6} ${x-5},${y+3} ${x+5},${y+3}" fill="var(--accent)" stroke="var(--card)" stroke-width="1.5"><title>買 ${f.date} ${f.qty}株 @${f.price}</title></polygon>`;
+    }else{const y=Y(h[idx])-11;
+      sv+=`<polygon points="${x},${y+6} ${x-5},${y-3} ${x+5},${y-3}" fill="#f59e0b" stroke="var(--card)" stroke-width="1.5"><title>売 ${f.date} ${f.qty}株 @${f.price}</title></polygon>`;
+    }
+  }
+  return `<div style="margin-top:8px"><svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${sv}</svg>
+  <div class="cd" style="display:flex;justify-content:space-between"><span>${d[0]}</span><span><span style="color:var(--accent)">▲</span>買い <span style="color:#f59e0b">▼</span>売り</span><span>${d[N-1]}</span></div></div>`;
+}
 function aggTrades(fills){
   const bySort=[...fills].sort((a,b)=>a.date.localeCompare(b.date)||a.side.localeCompare(b.side));
   const pos={}, closed=[];
@@ -313,7 +422,7 @@ function aggTrades(fills){
       const avg=p.qty>0?p.cost/p.qty:f.price;
       const pnl=(f.price*q-(f.fee||0))-avg*q;
       const hold=Math.max(1,Math.round((new Date(f.date)-new Date(p.first))/86400000));
-      closed.push({id:f.id,date:f.date,code4:f.code4,name:p.name||f.name,qty:q,
+      closed.push({id:f.id,date:f.date,code4:f.code4,name:p.name||f.name,qty:q,first:p.first,
         sell:f.price,avg:Math.round(avg*10)/10,pnl:Math.round(pnl),hold,broker:f.broker});
       p.cost-=avg*q; p.qty-=q;
       if(p.qty<=0){p.qty=0;p.cost=0;}
@@ -374,25 +483,42 @@ function monthlyChart(monthly){
 function memoKey(id){return 'tradeMemo:'+id}
 function saveMemo(id,el){try{localStorage.setItem(memoKey(id),el.value)}catch(e){}}
 function getMemo(id){try{return localStorage.getItem(memoKey(id))||''}catch(e){return ''}}
+function importCard(){
+  const guide=[
+    ['SBI証券','https://site1.sbisec.co.jp/ETGate/','ログイン → 上部メニュー「口座管理」→「取引履歴」→ 商品「国内株式」・期間「1年」等を選び照会 → 一覧の下の「CSVダウンロード」'],
+    ['三菱UFJ eスマート証券','https://kabu.com/','ログイン → 「資産・口座情報」→「取引履歴」→ 期間を指定して表示 →「CSV出力」'],
+    ['楽天証券','https://www.rakuten-sec.co.jp/','ログイン → 右上「マイメニュー」→「取引履歴」(国内株式) → 期間を指定して表示 →「CSVで保存」'],
+    ['マネックス証券','https://www.monex.co.jp/','ログイン → 「保有残高・口座管理」→「取引履歴」→ 期間を指定 →「CSVダウンロード」'],
+  ].map(([n,u,s])=>`<div style="padding:7px 0;border-top:1px solid var(--line)">
+    <a href="${u}" target="_blank" rel="noopener" style="font-weight:700">${n} を開く →</a>
+    <div class="fdesc" style="margin-top:2px">${s}</div></div>`).join('');
+  return `<div class="chartcard"><div class="ct">CSV取込</div>
+  <div class="fdesc">①下のリンクから証券会社を開いてCSVをダウンロード → ②戻ってきてファイルを選び「取り込む」。スマホならダウンロード後にファイル選択で「ダウンロード」フォルダを開けばOK。期間は「1年」や「全期間」で、同じ期間を何度取り込んでも重複は自動除外されます。</div>
+  <div style="display:flex;gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap">
+    <select id="brokerSel" class="memo" style="width:auto;margin:0;padding:6px 8px">
+      <option>SBI</option><option>eSマート</option><option>楽天</option><option>マネックス</option><option>その他</option></select>
+    <input type="file" id="csvIn" accept=".csv,.txt" multiple style="font-size:12px;max-width:180px">
+    <button class="fbtn on" onclick="doImport()">取り込む</button>
+  </div><div id="impMsg" class="fdesc" style="margin-top:6px"></div>
+  <div style="margin-top:8px"><a href="javascript:void(0)" class="fdesc" style="color:var(--accent)" onclick="const g=document.getElementById('csvGuide');g.hidden=!g.hidden">▸ 各社のCSVダウンロード手順を見る</a>
+  <div id="csvGuide" hidden style="margin-top:4px">${guide}<div class="fdesc" style="margin-top:6px">※メニュー名は画面リニューアルで多少変わることがあります。見つからない時は「◯◯証券 約定履歴 CSV」で検索するか、Claudeに聞いてください。取り込んだ分は端末保存です(<a href="javascript:void(0)" onclick="clearLocalFills()">端末取込分をクリア</a>)。Claudeのチャットに送れば全端末共通の本体データになります。</div></div></div></div>`;
+}
 function renderTrades(){
   document.getElementById('toolbar').style.display='none';
   document.getElementById('note').textContent='';
   const el=document.getElementById('list');
-  if(!TRADES||!TRADES.fills||!TRADES.fills.length){
-    el.innerHTML=`<div class="feed"><div class="fttl">まだ取引データがありません</div>
-    <div class="fdesc" style="margin-top:6px;line-height:1.9">各証券会社のサイトから「約定履歴CSV」をダウンロードして、<b>Claudeのチャットに送る</b>と自動で取り込まれます。<br>
-    ・SBI証券: 口座管理 → 取引履歴 → 約定履歴 → CSVダウンロード<br>
-    ・三菱UFJ eスマート証券: 資産管理 → 取引履歴 → CSV出力<br>
-    ・楽天証券: マイメニュー → 取引履歴(国内株式) → CSVで保存<br>
-    ・マネックス証券: 保有残高・口座管理 → 取引履歴 → CSVダウンロード<br>
-    期間は「全期間」や「1年」でOK。重複は自動で除外されるので何度送っても大丈夫です。</div></div>`;
+  const fills=allFills();
+  if(!fills.length){
+    el.innerHTML=importCard()+`<div class="feed"><div class="fttl">まだ取引データがありません</div>
+    <div class="fdesc" style="margin-top:6px;line-height:1.9">上のフォームから約定履歴CSVを取り込むか、CSVをClaudeのチャットに送ってください。取り込むと実現損益・勝率・月別成績・銘柄別成績・売買ポイント付きチャートが自動生成されます。</div></div>`;
     return;
   }
   if(!UNIVERSE){fetch('data/universe.json?'+Date.now()).then(r=>r.ok?r.json():{}).then(u=>{UNIVERSE=u;if(view==='trades')render();}).catch(()=>{UNIVERSE={};});}
-  const a=aggTrades(TRADES.fills);
+  const a=aggTrades(fills);
   const yen0=v=>(v>=0?'+':'')+Math.round(v).toLocaleString()+'円';
   const payoff=a.avgLoss?Math.abs(a.avgWin/a.avgLoss):null;
-  let h=`<div class="tiles">
+  let h=importCard();
+  h+=`<div class="tiles">
     <div class="tile"><div class="tl">累計実現損益</div><div class="tv ${a.total>=0?'pos':'neg'}">${yen0(a.total)}</div><div class="ts">決済 ${a.n}回</div></div>
     <div class="tile"><div class="tl">勝率</div><div class="tv">${a.n?Math.round(a.wins/a.n*100):0}%</div><div class="ts">${a.wins}勝${a.n-a.wins}敗</div></div>
     <div class="tile"><div class="tl">平均利益</div><div class="tv pos">${Math.round(a.avgWin).toLocaleString()}円</div><div class="ts">勝ちトレード平均</div></div>
@@ -413,7 +539,8 @@ function renderTrades(){
       return `<tr class="trow" onclick="const m=document.getElementById('m_${t.id}');m.hidden=!m.hidden">
       <td>${t.date.slice(2)}</td><td>${t.name||''} <span class="cd">${t.code4}</span>${memo?' 📝':''}</td>
       <td class="num">${t.qty.toLocaleString()}</td><td class="num ${t.pnl>=0?'pos':'neg'}">${yen0(t.pnl)}</td><td class="num">${t.hold}日</td></tr>
-      <tr id="m_${t.id}" hidden><td colspan="5"><div class="cd">${t.broker} ・ 取得平均${t.avg.toLocaleString()}→売却${t.sell.toLocaleString()}</div>
+      <tr id="m_${t.id}" hidden><td colspan="5"><div class="cd">${t.broker} ・ ${t.first} 取得平均${t.avg.toLocaleString()} → ${t.date} 売却${t.sell.toLocaleString()}</div>
+      ${tradeChartSvg(t,fills.filter(f=>f.code4===t.code4))}
       <textarea class="memo" placeholder="振り返りメモ (この端末に保存)" onclick="event.stopPropagation()" oninput="saveMemo('${t.id}',this)">${memo}</textarea></td></tr>`}).join('')+`</table></div>`;
   h+=`<div class="note" style="padding:8px 4px">最終取込: ${TRADES.updated_at||'—'} ・ 新しいCSVはClaudeのチャットに送れば追加されます(重複は自動除外)</div>`;
   el.innerHTML=h;
@@ -813,6 +940,7 @@ fetch('data/deep/index.json?'+Date.now()).then(r=>r.ok?r.json():null).then(d=>{D
 fetch('data/kabuzaru.json?'+Date.now()).then(r=>r.ok?r.json():null).then(k=>{KABU=k;if(view==='kabuzaru')render();}).catch(()=>{});
 fetch('data/duke.json?'+Date.now()).then(r=>r.ok?r.json():null).then(k=>{DUKE=k;if(view==='duke')render();}).catch(()=>{});
 fetch('data/trades.json?'+Date.now()).then(r=>r.ok?r.json():null).then(t=>{TRADES=t;if(view==='trades')render();}).catch(()=>{});
+fetch('data/trade_charts.json?'+Date.now()).then(r=>r.ok?r.json():null).then(t=>{TCH=t;if(view==='trades')render();}).catch(()=>{});
 fetch('data/articles.json?'+Date.now()).then(r=>r.ok?r.json():null).then(a=>{ARTICLES=a;if(view==='articles')render();}).catch(()=>{});
 fetch('data/comments.json?'+Date.now()).then(r=>r.ok?r.json():null).then(c=>{COMMENTS=c;render();}).catch(()=>{});
 fetch('data/charts.json?'+Date.now()).then(r=>r.ok?r.json():null).then(c=>{CHARTS=c;}).catch(()=>{});

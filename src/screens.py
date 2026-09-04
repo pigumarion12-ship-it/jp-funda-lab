@@ -521,6 +521,40 @@ def _mark_new(screens_dict, new_as_of, path):
                 it["is_new"] = False
 
 
+def build_trade_charts(prices: pd.DataFrame, trades_path="docs/data/trades.json",
+                       path="docs/data/trade_charts.json"):
+    """トレードノートの銘柄について、日付つきOHLCを出力(売買マーカー描画用)。"""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    codes4 = set()
+    if os.path.exists(trades_path):
+        try:
+            t = json.load(open(trades_path))
+            codes4 = {f["code4"] for f in t.get("fills", [])}
+        except Exception:
+            pass
+    out = {}
+    if codes4 and len(prices):
+        codes5 = {c + "0" for c in codes4} | codes4
+        px = prices[prices["Code"].isin(codes5)]
+        for code, g in px.groupby("Code"):
+            g = g.sort_values("Date")
+            g = g[g["AdjC"].notna()]
+            if len(g) < 5:
+                continue
+            code4 = code[:-1] if len(code) == 5 and code.endswith("0") else code
+            cc = g["AdjC"]
+            out[code4] = {
+                "d": [str(x) for x in g["Date"]],
+                "o": [round(float(x), 1) for x in g["AdjO"].fillna(cc)],
+                "h": [round(float(x), 1) for x in g["AdjH"].fillna(cc)],
+                "l": [round(float(x), 1) for x in g["AdjL"].fillna(cc)],
+                "c": [round(float(x), 1) for x in cc],
+            }
+    with open(path, "w") as f:
+        json.dump(out, f, ensure_ascii=False)
+    print(f"trade_charts: {len(out)} codes", flush=True)
+
+
 def build_output(df: pd.DataFrame, path="docs/data/latest.json"):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     n = screen_niokutameo(df)

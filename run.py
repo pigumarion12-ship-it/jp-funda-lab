@@ -58,6 +58,7 @@ def build():
     screens.build_charts(prices, codes5)
     alerts.build_universe(df)
     alerts.build_alerts(prices, stmts, df)
+    screens.build_trade_charts(prices)
 
 
 def main():
