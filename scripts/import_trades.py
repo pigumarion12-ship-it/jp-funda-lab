@@ -97,8 +97,12 @@ def parse_date(v):
 
 
 def extract_code(code_cell, name_cell):
+    # 4桁数字 or 新型コード(数字3+英数字1: 350A等)
+    m = re.fullmatch(r"(\d{3}[0-9A-Z])", norm(code_cell))
+    if m:
+        return m.group(1)
     for v in (code_cell, name_cell):
-        m = re.search(r"\b(\d{4})\b", norm(v))
+        m = re.search(r"\b(\d{3}[0-9A-Z])\b", norm(v))
         if m:
             return m.group(1)
     return None
@@ -137,6 +141,82 @@ def parse_file(path, broker):
     return fills
 
 
+SELL_KINDS = ("現物売", "信用返済", "外国株式売", "国内投信解約")
+DIV_KINDS = ("配当", "分配金")
+
+
+def is_gains_file(rows):
+    for r in rows[:40]:
+        if any("取得/新規金額" in norm(c) for c in r):
+            return True
+    return False
+
+
+def parse_gains(path, broker):
+    """特定口座損益明細(譲渡益税明細)CSV → realized/dividends."""
+    rows = read_csv_rows(path)
+    hi = None
+    for i, r in enumerate(rows[:40]):
+        if any("取得/新規金額" in norm(c) for c in r):
+            hi = i
+            header = [norm(c) for c in r]
+            break
+    if hi is None:
+        raise SystemExit("損益明細のヘッダが見つかりません")
+    ix = {h: i for i, h in enumerate(header)}
+    def g(row, key):
+        i = ix.get(key)
+        return norm(row[i]) if i is not None and i < len(row) else ""
+    groups = {}
+    dividends = []
+    for row in rows[hi + 1:]:
+        if not row or norm(row[0]) == "譲渡益税徴収額":
+            continue
+        kind = g(row, "取引")
+        if not kind:
+            continue
+        date = parse_date(g(row, "約定日"))
+        name = g(row, "銘柄") or None
+        code = extract_code(g(row, "銘柄コード"), "")
+        pnl = to_num(g(row, "損益金額/徴収額"))
+        if any(k in kind for k in DIV_KINDS):
+            if date and pnl is not None:
+                d = {"broker": broker, "date": date, "code4": code, "name": name,
+                     "amount": pnl, "kind": kind}
+                d["id"] = hashlib.md5(
+                    f"div|{date}|{code or name}|{pnl}".encode()).hexdigest()[:12]
+                dividends.append(d)
+            continue
+        if not any(k in kind for k in SELL_KINDS):
+            continue
+        qty = to_num(g(row, "数量"))
+        proceeds = to_num(g(row, "売却/決済金額"))
+        cost = to_num(g(row, "取得/新規金額"))
+        acq = parse_date(g(row, "取得/新規年月日"))
+        fee = to_num(g(row, "費用")) or 0.0
+        if not (date and pnl is not None):
+            continue
+        key = (code or name, date, kind)
+        gr = groups.setdefault(key, {"broker": broker, "date": date, "code4": code,
+                                     "name": name, "kind": kind, "qty": 0.0,
+                                     "proceeds": 0.0, "cost": 0.0, "fee": 0.0,
+                                     "pnl": 0.0, "acq_date": acq})
+        gr["qty"] += qty or 0
+        gr["proceeds"] += proceeds or 0
+        gr["cost"] += cost or 0
+        gr["fee"] += fee
+        gr["pnl"] += pnl
+        if acq and (gr["acq_date"] is None or acq < gr["acq_date"]):
+            gr["acq_date"] = acq
+    realized = []
+    for gr in groups.values():
+        gr["id"] = hashlib.md5(
+            f"gain|{gr['date']}|{gr['code4'] or gr['name']}|{gr['kind']}|{gr['qty']}|{gr['pnl']}".encode()
+        ).hexdigest()[:12]
+        realized.append(gr)
+    return realized, dividends
+
+
 def main():
     if len(sys.argv) < 3:
         raise SystemExit(__doc__)
@@ -144,15 +224,31 @@ def main():
     data = {"updated_at": None, "fills": []}
     if OUT.exists():
         data = json.loads(OUT.read_text())
+    data.setdefault("realized", [])
+    data.setdefault("dividends", [])
     known = {f["id"] for f in data["fills"]}
+    known_r = {r["id"] for r in data["realized"]}
+    known_d = {d["id"] for d in data["dividends"]}
     added = 0
     for p in sys.argv[2:]:
+        rows0 = read_csv_rows(p)
+        if is_gains_file(rows0):
+            rz, dv = parse_gains(p, broker)
+            for r in rz:
+                if r["id"] not in known_r:
+                    data["realized"].append(r); known_r.add(r["id"]); added += 1
+            for d in dv:
+                if d["id"] not in known_d:
+                    data["dividends"].append(d); known_d.add(d["id"]); added += 1
+            continue
         for f in parse_file(p, broker):
             if f["id"] not in known:
                 data["fills"].append(f)
                 known.add(f["id"])
                 added += 1
     data["fills"].sort(key=lambda f: (f["date"], f["code4"]))
+    data["realized"].sort(key=lambda r: r["date"])
+    data["dividends"].sort(key=lambda d: d["date"])
     import datetime as dt
     data["updated_at"] = dt.datetime.now().strftime("%Y-%m-%d %H:%M")
     OUT.parent.mkdir(parents=True, exist_ok=True)

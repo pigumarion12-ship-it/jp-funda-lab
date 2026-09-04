@@ -13,15 +13,22 @@ import pandas as pd
 
 def build_universe(df: pd.DataFrame, path="docs/data/universe.json"):
     os.makedirs(os.path.dirname(path), exist_ok=True)
+    def _clean(v):
+        if v is None:
+            return None
+        if isinstance(v, float) and not np.isfinite(v):
+            return None
+        return v
     out = {}
     for _, r in df.iterrows():
         out[r["code4"]] = {
-            "n": r["name"], "s": r["sector"], "p": r["price"],
-            "m": r["mcap_oku"], "per": r["per"], "pbr": r["pbr"],
-            "y": r["yield"], "roe": r["roe"],
+            "n": r["name"], "s": r["sector"], "p": _clean(r["price"]),
+            "m": _clean(r["mcap_oku"]), "per": _clean(r["per"]),
+            "pbr": _clean(r["pbr"]),
+            "y": _clean(r["yield"]), "roe": _clean(r["roe"]),
         }
     with open(path, "w") as f:
-        json.dump(out, f, ensure_ascii=False)
+        json.dump(out, f, ensure_ascii=False, allow_nan=False)
     print(f"universe: {len(out)} codes", flush=True)
 
 
