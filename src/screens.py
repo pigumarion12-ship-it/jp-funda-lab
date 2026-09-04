@@ -530,7 +530,6 @@ def build_trade_charts(prices: pd.DataFrame, trades_path="docs/data/trades.json"
         try:
             t = json.load(open(trades_path))
             codes4 = {f["code4"] for f in t.get("fills", [])}
-            codes4 |= {r.get("code4") for r in t.get("realized", []) if r.get("code4")}
         except Exception:
             pass
     out = {}

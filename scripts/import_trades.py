@@ -233,13 +233,8 @@ def main():
     for p in sys.argv[2:]:
         rows0 = read_csv_rows(p)
         if is_gains_file(rows0):
-            rz, dv = parse_gains(p, broker)
-            for r in rz:
-                if r["id"] not in known_r:
-                    data["realized"].append(r); known_r.add(r["id"]); added += 1
-            for d in dv:
-                if d["id"] not in known_d:
-                    data["dividends"].append(d); known_d.add(d["id"]); added += 1
+            # ユーザー指定: 集計は約定履歴ベース。譲渡益税明細は取込まない
+            print(f"譲渡益税明細のためスキップ: {p} (約定履歴CSVを使ってください)")
             continue
         for f in parse_file(p, broker):
             if f["id"] not in known:

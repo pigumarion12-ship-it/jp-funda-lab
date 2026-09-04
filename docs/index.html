@@ -404,22 +404,6 @@ function tradeChartSvg(t,fills){
   return `<div style="margin-top:8px"><svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${sv}</svg>
   <div class="cd" style="display:flex;justify-content:space-between"><span>${d[0]}</span><span><span style="color:var(--accent)">▲</span>買い <span style="color:#f59e0b">▼</span>売り</span><span>${d[N-1]}</span></div></div>`;
 }
-function aggRealized(stockR){
-  const closed=stockR.map(r=>({id:r.id,date:r.date,code4:r.code4,name:r.name,qty:r.qty,
-    pnl:Math.round(r.pnl),
-    hold:r.acq_date?Math.max(1,Math.round((new Date(r.date)-new Date(r.acq_date))/86400000)):null,
-    first:r.acq_date||r.date,
-    sell:r.qty?Math.round(r.proceeds/r.qty*10)/10:null,
-    avg:r.qty?Math.round(r.cost/r.qty*10)/10:null,broker:r.kind||'明細'}));
-  closed.sort((a,b)=>b.date.localeCompare(a.date));
-  const wins=closed.filter(t=>t.pnl>0),losses=closed.filter(t=>t.pnl<0);
-  const sum=a=>a.reduce((s,t)=>s+t.pnl,0);
-  const monthly={};closed.forEach(t=>{const m=t.date.slice(0,7);monthly[m]=(monthly[m]||0)+t.pnl;});
-  const byStock={};closed.forEach(t=>{const b=byStock[t.code4]||(byStock[t.code4]={name:t.name,n:0,w:0,pnl:0});
-    b.n++;if(t.pnl>0)b.w++;b.pnl+=t.pnl;});
-  return {closed,open:[],monthly,byStock,total:sum(closed),wins:wins.length,n:closed.length,
-    avgWin:wins.length?sum(wins)/wins.length:0,avgLoss:losses.length?sum(losses)/losses.length:0};
-}
 function aggTrades(fills){
   const bySort=[...fills].sort((a,b)=>a.date.localeCompare(b.date)||a.side.localeCompare(b.side));
   const pos={}, closed=[];
@@ -527,14 +511,7 @@ function renderTrades(){
     return;
   }
   if(!UNIVERSE){fetch('data/universe.json?'+Date.now()).then(r=>r.ok?r.json():{}).then(u=>{UNIVERSE=u;if(view==='trades')render();}).catch(()=>{UNIVERSE={};});}
-  const R=(TRADES&&TRADES.realized)||[];
-  const stockR=R.filter(r=>r.code4&&!(r.kind||'').includes('投信'));
-  const useR=stockR.length>0;
-  const af=aggTrades(fills);
-  const a=useR?aggRealized(stockR):af;
-  if(useR)a.open=af.open;
-  const fundPnl=R.filter(r=>(r.kind||'').includes('投信')).reduce((s,r)=>s+r.pnl,0);
-  const divTotal=((TRADES&&TRADES.dividends)||[]).reduce((s,d)=>s+d.amount,0);
+  const a=aggTrades(fills);
   const yen0=v=>(v>=0?'+':'')+Math.round(v).toLocaleString()+'円';
   const payoff=a.avgLoss?Math.abs(a.avgWin/a.avgLoss):null;
   let h=importCard();
@@ -543,10 +520,8 @@ function renderTrades(){
     <div class="tile"><div class="tl">勝率</div><div class="tv">${a.n?Math.round(a.wins/a.n*100):0}%</div><div class="ts">${a.wins}勝${a.n-a.wins}敗</div></div>
     <div class="tile"><div class="tl">平均利益</div><div class="tv pos">${Math.round(a.avgWin).toLocaleString()}円</div><div class="ts">勝ちトレード平均</div></div>
     <div class="tile"><div class="tl">平均損失</div><div class="tv neg">${Math.round(a.avgLoss).toLocaleString()}円</div><div class="ts">ペイオフ比 ${payoff?payoff.toFixed(2):'—'}</div></div>
-    ${divTotal?`<div class="tile"><div class="tl">受取配当</div><div class="tv pos">+${Math.round(divTotal).toLocaleString()}円</div><div class="ts">明細期間の合計</div></div>`:''}
-    ${fundPnl?`<div class="tile"><div class="tl">投信の譲渡損益</div><div class="tv ${fundPnl>=0?'pos':'neg'}">${yen0(fundPnl)}</div><div class="ts">株の集計とは別枠</div></div>`:''}
   </div>`;
-  if(useR)h+=`<div class="note" style="padding:6px 4px">損益は譲渡益税明細(特定口座)ベースの確定値。NISAでの売却益は明細に含まれません。保有中は約定履歴からの推定です。</div>`;
+  h+=`<div class="note" style="padding:6px 4px">約定履歴ベースの集計(移動平均法)。履歴期間より前に買った銘柄の売却は集計対象外です。</div>`;
   h+=`<div class="chartcard"><div class="ct">月別実現損益</div><div style="overflow-x:auto">${monthlyChart(a.monthly)}</div></div>`;
   if(a.open.length){
     const u=UNIVERSE||{};
@@ -566,8 +541,7 @@ function renderTrades(){
       const buyQ=buys.reduce((s,f)=>s+f.qty,0),buyAmt=buys.reduce((s,f)=>s+f.price*f.qty,0);
       const sellQ=sells.reduce((s,f)=>s+f.qty,0),sellAmt=sells.reduce((s,f)=>s+f.price*f.qty,0);
       const fees=cf.reduce((s,f)=>s+(f.fee||0),0);
-      const costAmt=useR?ct.reduce((s,t)=>s+(t.avg&&t.qty?t.avg*t.qty:0),0):buyAmt;
-      const pnlPct=costAmt?Math.round(b.pnl/costAmt*1000)/10:null;
+      const pnlPct=buyAmt?Math.round(b.pnl/buyAmt*1000)/10:null;
       const sumLine=cf.length?`■買い ${buyQ.toLocaleString()}株 / ${Math.round(buyAmt).toLocaleString()}円 ・ ■売り ${sellQ.toLocaleString()}株 / ${Math.round(sellAmt).toLocaleString()}円 ・ 費用 ${Math.round(fees).toLocaleString()}円 ・ `:`約定履歴なし(譲渡益税明細のみ) ・ `;
       const hist=cf.length?cf.map(f=>`<div class="cd" style="padding:1px 0">${f.date.slice(2)} <span class="${f.side==='buy'?'pos':'neg'}">${f.side==='buy'?'買':'売'}</span> ${f.qty.toLocaleString()}株 @${f.price.toLocaleString()}${f.account?` <span style="opacity:.7">${f.account}</span>`:''}</div>`).join('')
         :ct.map(t=>`<div class="cd" style="padding:1px 0">${t.date.slice(2)} 売却 ${(t.qty||0).toLocaleString()}株 <span class="${t.pnl>=0?'pos':'neg'}">${yen0(t.pnl)}</span></div>`).join('');
