@@ -161,6 +161,24 @@ footer{color:var(--sub);font-size:11px;padding:0 18px 34px}
   padding:2px 9px;font-size:11.5px;font-weight:600}
 .gmini{display:inline-block;background:var(--chip);border-radius:6px;padding:1px 7px;
   font-size:10.5px;font-weight:700;margin:0 3px 0 0}
+/* trade note */
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:12px;
+  padding:10px 12px;box-shadow:var(--shadow)}
+.tile .tl{font-size:11px;color:var(--sub)}
+.tile .tv{font-size:21px;font-weight:700;margin-top:2px}
+.tile .ts{font-size:10.5px;color:var(--sub);margin-top:1px}
+.chartcard{background:var(--card);border:1px solid var(--line);border-radius:14px;
+  padding:12px 14px;box-shadow:var(--shadow)}
+.chartcard .ct{font-weight:700;font-size:13.5px;margin-bottom:6px}
+.ttable{width:100%;border-collapse:collapse;font-size:12.5px}
+.ttable th{text-align:left;color:var(--sub);font-weight:600;font-size:11px;
+  padding:4px 6px;border-bottom:1px solid var(--line)}
+.ttable td{padding:6px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+.ttable td.num,.ttable th.num{text-align:right}
+.trow{cursor:pointer}
+.memo{width:100%;box-sizing:border-box;margin-top:6px;padding:7px 10px;border:1px solid var(--line);
+  border-radius:9px;background:var(--bg);color:var(--text);font-size:12.5px;font-family:inherit}
 </style>
 </head>
 <body>
@@ -183,6 +201,7 @@ footer{color:var(--sub);font-size:11px;padding:0 18px 34px}
   <button class="mi" data-v="articles" onclick="go('articles')">記事</button>
   <div class="dttl">マイリスト</div>
   <button class="mi" data-v="watch" onclick="go('watch')">ウォッチリスト <span id="wbadge"></span></button>
+  <button class="mi" data-v="trades" onclick="go('trades')">📓 トレードノート</button>
   <div class="dttl">操作</div>
   <a class="mi" style="text-decoration:none;display:block" target="_blank" rel="noopener"
      href="https://claude.ai/new?q=%E3%82%B9%E3%82%B1%E3%82%B8%E3%83%A5%E3%83%BC%E3%83%AB%E3%82%BF%E3%82%B9%E3%82%AF%E3%80%8C%E3%83%95%E3%82%A1%E3%83%B3%E3%83%80%E3%83%BB%E3%83%A9%E3%83%9C%20%E8%A7%A3%E8%AA%AC%E7%94%9F%E6%88%90%EF%BC%88%E6%89%8B%E5%8B%95%E5%AE%9F%E8%A1%8C%E5%B0%82%E7%94%A8%EF%BC%89%E3%80%8D%E3%82%92fire_trigger%E3%81%A7%E5%AE%9F%E8%A1%8C%E3%81%97%E3%81%A6%E3%80%82%E5%AE%9F%E8%A1%8C%E3%81%A0%E3%81%91%E3%81%A7OK%E3%80%82">📝 解説を更新</a>
@@ -277,7 +296,128 @@ document.addEventListener('click',e=>{
   if(pop.classList.contains('show')&&!pop.contains(e.target)&&!e.target.classList.contains('cbtn'))hideChart();
 });
 const VT={sougou:'総合(三式ミックス)',niokutameo:'弐億貯男式',kiyohara:'清原式',
-          dividend:'配当バリュー成長',kabuzaru:'株猿式 (10基準)',duke:'DUKE式 (新高値)',analysis:'A〜E分析',articles:'記事',watch:'ウォッチリスト'};
+          dividend:'配当バリュー成長',kabuzaru:'株猿式 (10基準)',duke:'DUKE式 (新高値)',analysis:'A〜E分析',articles:'記事',watch:'ウォッチリスト',trades:'トレードノート'};
+let TRADES=null;
+function aggTrades(fills){
+  const bySort=[...fills].sort((a,b)=>a.date.localeCompare(b.date)||a.side.localeCompare(b.side));
+  const pos={}, closed=[];
+  for(const f of bySort){
+    const p=pos[f.code4]||(pos[f.code4]={qty:0,cost:0,first:f.date,name:f.name,brokers:new Set()});
+    p.brokers.add(f.broker); if(f.name)p.name=f.name;
+    if(f.side==='buy'){
+      p.cost=p.cost+f.price*f.qty+(f.fee||0); p.qty+=f.qty;
+      if(p.qty===f.qty)p.first=f.date;
+    }else{
+      const q=Math.min(f.qty,p.qty);
+      if(q<=0)continue;
+      const avg=p.qty>0?p.cost/p.qty:f.price;
+      const pnl=(f.price*q-(f.fee||0))-avg*q;
+      const hold=Math.max(1,Math.round((new Date(f.date)-new Date(p.first))/86400000));
+      closed.push({id:f.id,date:f.date,code4:f.code4,name:p.name||f.name,qty:q,
+        sell:f.price,avg:Math.round(avg*10)/10,pnl:Math.round(pnl),hold,broker:f.broker});
+      p.cost-=avg*q; p.qty-=q;
+      if(p.qty<=0){p.qty=0;p.cost=0;}
+    }
+  }
+  const open=Object.entries(pos).filter(([,p])=>p.qty>0).map(([c,p])=>({
+    code4:c,name:p.name,qty:p.qty,avg:Math.round(p.cost/p.qty*10)/10,first:p.first}));
+  const wins=closed.filter(t=>t.pnl>0),losses=closed.filter(t=>t.pnl<0);
+  const sum=a=>a.reduce((s,t)=>s+t.pnl,0);
+  const monthly={};
+  closed.forEach(t=>{const m=t.date.slice(0,7);monthly[m]=(monthly[m]||0)+t.pnl;});
+  const byStock={};
+  closed.forEach(t=>{const b=byStock[t.code4]||(byStock[t.code4]={name:t.name,n:0,w:0,pnl:0});
+    b.n++;if(t.pnl>0)b.w++;b.pnl+=t.pnl;});
+  return {closed:closed.reverse(),open,monthly,byStock,
+    total:sum(closed),wins:wins.length,n:closed.length,
+    avgWin:wins.length?sum(wins)/wins.length:0,
+    avgLoss:losses.length?sum(losses)/losses.length:0};
+}
+function monthlyChart(monthly){
+  const keys=Object.keys(monthly).sort().slice(-12);
+  if(!keys.length)return '';
+  const vals=keys.map(k=>monthly[k]);
+  const W=Math.min(560,window.innerWidth-60),H=170,P={t:14,b:20,l:8,r:8};
+  const mx=Math.max(...vals,0),mn=Math.min(...vals,0),rg=(mx-mn)||1;
+  const Y=v=>P.t+(H-P.t-P.b)*(mx-v)/rg;
+  const y0=Y(0);
+  const slot=(W-P.l-P.r)/keys.length;
+  const bw=Math.min(24,slot-2);
+  // きりのいい目盛り
+  const step=Math.pow(10,Math.floor(Math.log10(rg)))* (rg/Math.pow(10,Math.floor(Math.log10(rg)))>5?2:1);
+  let grid='';
+  for(let v=Math.ceil(mn/step)*step;v<=mx;v+=step){
+    grid+=`<line x1="${P.l}" x2="${W-P.r}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}" stroke="var(--line)" stroke-width="1"/>`;
+  }
+  const iMax=vals.indexOf(Math.max(...vals)),iMin=vals.indexOf(Math.min(...vals));
+  let bars='';
+  keys.forEach((k,i)=>{
+    const v=vals[i],x=P.l+slot*i+(slot-bw)/2;
+    const top=Math.min(Y(v),y0),h=Math.max(1.5,Math.abs(Y(v)-y0));
+    const col=v>=0?'var(--good)':'var(--bad)';
+    const r=Math.min(4,h);
+    // データ側の端のみ4px丸め・ベースライン側は直角
+    const d=v>=0
+      ?`M${x},${y0} V${top+r} Q${x},${top} ${x+r},${top} H${x+bw-r} Q${x+bw},${top} ${x+bw},${top+r} V${y0} Z`
+      :`M${x},${y0} V${top+h-r} Q${x},${top+h} ${x+r},${top+h} H${x+bw-r} Q${x+bw},${top+h} ${x+bw},${top+h-r} V${y0} Z`;
+    bars+=`<path d="${d}" fill="${col}"><title>${k}: ${v>=0?'+':''}${v.toLocaleString()}円</title></path>`;
+    if(i===iMax||i===iMin||i===keys.length-1){
+      const ly=v>=0?top-4:top+h+11;
+      bars+=`<text x="${x+bw/2}" y="${ly.toFixed(1)}" text-anchor="middle" font-size="9.5" fill="var(--sub)">${(v/10000).toFixed(0)}万</text>`;
+    }
+    bars+=`<text x="${x+bw/2}" y="${H-6}" text-anchor="middle" font-size="9" fill="var(--sub)">${k.slice(5)}月</text>`;
+  });
+  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${grid}
+    <line x1="${P.l}" x2="${W-P.r}" y1="${y0.toFixed(1)}" y2="${y0.toFixed(1)}" stroke="var(--sub)" stroke-width="1"/>
+    ${bars}</svg>`;
+}
+function memoKey(id){return 'tradeMemo:'+id}
+function saveMemo(id,el){try{localStorage.setItem(memoKey(id),el.value)}catch(e){}}
+function getMemo(id){try{return localStorage.getItem(memoKey(id))||''}catch(e){return ''}}
+function renderTrades(){
+  document.getElementById('toolbar').style.display='none';
+  document.getElementById('note').textContent='';
+  const el=document.getElementById('list');
+  if(!TRADES||!TRADES.fills||!TRADES.fills.length){
+    el.innerHTML=`<div class="feed"><div class="fttl">まだ取引データがありません</div>
+    <div class="fdesc" style="margin-top:6px;line-height:1.9">各証券会社のサイトから「約定履歴CSV」をダウンロードして、<b>Claudeのチャットに送る</b>と自動で取り込まれます。<br>
+    ・SBI証券: 口座管理 → 取引履歴 → 約定履歴 → CSVダウンロード<br>
+    ・三菱UFJ eスマート証券: 資産管理 → 取引履歴 → CSV出力<br>
+    ・楽天証券: マイメニュー → 取引履歴(国内株式) → CSVで保存<br>
+    ・マネックス証券: 保有残高・口座管理 → 取引履歴 → CSVダウンロード<br>
+    期間は「全期間」や「1年」でOK。重複は自動で除外されるので何度送っても大丈夫です。</div></div>`;
+    return;
+  }
+  if(!UNIVERSE){fetch('data/universe.json?'+Date.now()).then(r=>r.ok?r.json():{}).then(u=>{UNIVERSE=u;if(view==='trades')render();}).catch(()=>{UNIVERSE={};});}
+  const a=aggTrades(TRADES.fills);
+  const yen0=v=>(v>=0?'+':'')+Math.round(v).toLocaleString()+'円';
+  const payoff=a.avgLoss?Math.abs(a.avgWin/a.avgLoss):null;
+  let h=`<div class="tiles">
+    <div class="tile"><div class="tl">累計実現損益</div><div class="tv ${a.total>=0?'pos':'neg'}">${yen0(a.total)}</div><div class="ts">決済 ${a.n}回</div></div>
+    <div class="tile"><div class="tl">勝率</div><div class="tv">${a.n?Math.round(a.wins/a.n*100):0}%</div><div class="ts">${a.wins}勝${a.n-a.wins}敗</div></div>
+    <div class="tile"><div class="tl">平均利益</div><div class="tv pos">${Math.round(a.avgWin).toLocaleString()}円</div><div class="ts">勝ちトレード平均</div></div>
+    <div class="tile"><div class="tl">平均損失</div><div class="tv neg">${Math.round(a.avgLoss).toLocaleString()}円</div><div class="ts">ペイオフ比 ${payoff?payoff.toFixed(2):'—'}</div></div>
+  </div>`;
+  h+=`<div class="chartcard"><div class="ct">月別実現損益</div><div style="overflow-x:auto">${monthlyChart(a.monthly)}</div></div>`;
+  if(a.open.length){
+    const u=UNIVERSE||{};
+    h+=`<div class="chartcard"><div class="ct">保有中 (${a.open.length})</div><table class="ttable"><tr><th>銘柄</th><th class="num">数量</th><th class="num">平均取得</th><th class="num">現在値</th><th class="num">含み損益</th></tr>`+
+    a.open.map(p=>{const cur=(u[p.code4]||{}).p;const upl=cur?(cur-p.avg)*p.qty:null;
+      return `<tr><td>${p.name||''} <span class="cd">${p.code4}</span></td><td class="num">${p.qty.toLocaleString()}</td><td class="num">${p.avg.toLocaleString()}</td><td class="num">${cur?cur.toLocaleString():'—'}</td><td class="num ${upl>=0?'pos':'neg'}">${upl!==null?yen0(upl):'—'}</td></tr>`}).join('')+`</table></div>`;
+  }
+  const bs=Object.entries(a.byStock).sort((x,y)=>y[1].pnl-x[1].pnl);
+  h+=`<div class="chartcard"><div class="ct">銘柄別成績</div><table class="ttable"><tr><th>銘柄</th><th class="num">回数</th><th class="num">勝率</th><th class="num">実現損益</th></tr>`+
+    bs.map(([c,b])=>`<tr><td>${b.name||''} <span class="cd">${c}</span></td><td class="num">${b.n}</td><td class="num">${Math.round(b.w/b.n*100)}%</td><td class="num ${b.pnl>=0?'pos':'neg'}">${yen0(b.pnl)}</td></tr>`).join('')+`</table></div>`;
+  h+=`<div class="chartcard"><div class="ct">決済履歴 (タップでメモ)</div><table class="ttable"><tr><th>日付</th><th>銘柄</th><th class="num">数量</th><th class="num">損益</th><th class="num">保有</th></tr>`+
+    a.closed.map(t=>{const memo=getMemo(t.id);
+      return `<tr class="trow" onclick="const m=document.getElementById('m_${t.id}');m.hidden=!m.hidden">
+      <td>${t.date.slice(2)}</td><td>${t.name||''} <span class="cd">${t.code4}</span>${memo?' 📝':''}</td>
+      <td class="num">${t.qty.toLocaleString()}</td><td class="num ${t.pnl>=0?'pos':'neg'}">${yen0(t.pnl)}</td><td class="num">${t.hold}日</td></tr>
+      <tr id="m_${t.id}" hidden><td colspan="5"><div class="cd">${t.broker} ・ 取得平均${t.avg.toLocaleString()}→売却${t.sell.toLocaleString()}</div>
+      <textarea class="memo" placeholder="振り返りメモ (この端末に保存)" onclick="event.stopPropagation()" oninput="saveMemo('${t.id}',this)">${memo}</textarea></td></tr>`}).join('')+`</table></div>`;
+  h+=`<div class="note" style="padding:8px 4px">最終取込: ${TRADES.updated_at||'—'} ・ 新しいCSVはClaudeのチャットに送れば追加されます(重複は自動除外)</div>`;
+  el.innerHTML=h;
+}
 let KABU=null, DUKE=null;
 function dukeCard(r,i){
   const nm=(r.name||'').replace(/'/g,'');
@@ -635,6 +775,7 @@ function render(){
   if(view==='watch'){renderWatch();document.getElementById('count').textContent='';return;}
   if(view==='kabuzaru'){renderKabu();return;}
   if(view==='duke'){renderDuke();return;}
+  if(view==='trades'){renderTrades();document.getElementById('count').textContent='';return;}
   if(view==='articles'){renderArticles();document.getElementById('count').textContent='';return;}
   document.getElementById('toolbar').style.display='';
   const q=document.getElementById('q').value.trim().toLowerCase();
@@ -671,6 +812,7 @@ fetch('data/analysis.json?'+Date.now()).then(r=>r.ok?r.json():null).then(a=>{ANA
 fetch('data/deep/index.json?'+Date.now()).then(r=>r.ok?r.json():null).then(d=>{DEEP=d;render();}).catch(()=>{});
 fetch('data/kabuzaru.json?'+Date.now()).then(r=>r.ok?r.json():null).then(k=>{KABU=k;if(view==='kabuzaru')render();}).catch(()=>{});
 fetch('data/duke.json?'+Date.now()).then(r=>r.ok?r.json():null).then(k=>{DUKE=k;if(view==='duke')render();}).catch(()=>{});
+fetch('data/trades.json?'+Date.now()).then(r=>r.ok?r.json():null).then(t=>{TRADES=t;if(view==='trades')render();}).catch(()=>{});
 fetch('data/articles.json?'+Date.now()).then(r=>r.ok?r.json():null).then(a=>{ARTICLES=a;if(view==='articles')render();}).catch(()=>{});
 fetch('data/comments.json?'+Date.now()).then(r=>r.ok?r.json():null).then(c=>{COMMENTS=c;render();}).catch(()=>{});
 fetch('data/charts.json?'+Date.now()).then(r=>r.ok?r.json():null).then(c=>{CHARTS=c;}).catch(()=>{});

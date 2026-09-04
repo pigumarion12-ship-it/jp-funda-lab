@@ -1,0 +1,164 @@
+"""証券会社の約定履歴CSVを正規化して docs/data/trades.json に取り込む.
+
+usage: python scripts/import_trades.py <broker> <csv...>
+  broker: sbi / esmart / rakuten / monex (不明なら auto)
+
+- 文字コードは cp932 → utf-8-sig → utf-8 の順で自動判定
+- ヘッダ行は「約定日/銘柄/数量」系の語を含む行を探して特定
+- 重複は (broker,日付,コード,売買,数量,単価) のハッシュで排除
+"""
+import csv
+import hashlib
+import io
+import json
+import re
+import sys
+import unicodedata
+from pathlib import Path
+
+OUT = Path("docs/data/trades.json")
+
+CAND = {
+    "date": ["約定日", "約定日時", "国内約定日", "取引日", "受渡日"],
+    "name": ["銘柄名", "銘柄", "ファンド名"],
+    "code": ["銘柄コード", "証券コード", "コード"],
+    "side": ["取引", "売買", "取引区分", "売買区分", "取引種類"],
+    "qty": ["約定数量", "数量", "出来数量", "約定株数", "数量[株]", "株数"],
+    "price": ["約定単価", "単価", "約定価格", "約定単価[円]", "平均約定単価"],
+    "fee": ["手数料", "手数料/諸経費等", "手数料等", "手数料（税込）", "手数料(税込)"],
+    "tax": ["税額", "税金等", "課税額"],
+    "account": ["口座", "預り区分", "口座区分", "預り"],
+}
+
+
+def norm(s):
+    return unicodedata.normalize("NFKC", str(s or "")).strip()
+
+
+def to_num(s):
+    s = norm(s).replace(",", "").replace("円", "").replace("株", "")
+    s = re.sub(r"[^\d.\-]", "", s)
+    try:
+        return float(s)
+    except ValueError:
+        return None
+
+
+def read_csv_rows(path):
+    raw = Path(path).read_bytes()
+    for enc in ("cp932", "utf-8-sig", "utf-8"):
+        try:
+            text = raw.decode(enc)
+            break
+        except UnicodeDecodeError:
+            continue
+    else:
+        raise SystemExit(f"文字コード判定失敗: {path}")
+    return list(csv.reader(io.StringIO(text)))
+
+
+def find_header(rows):
+    for i, row in enumerate(rows[:30]):
+        cells = [norm(c) for c in row]
+        joined = "".join(cells)
+        if any(k in joined for k in ("約定日", "取引日")) and \
+           any(k in joined for k in ("銘柄", "ファンド")) and \
+           any(k in joined for k in ("数量", "株数", "口数")):
+            return i, cells
+    raise SystemExit("ヘッダ行が見つかりません(対応外のCSV形式)")
+
+
+def col_idx(header, keys):
+    for k in keys:
+        for i, h in enumerate(header):
+            if k in h:
+                return i
+    return None
+
+
+def parse_side(v):
+    v = norm(v)
+    if "買" in v:
+        return "buy"
+    if "売" in v:
+        return "sell"
+    return None
+
+
+def parse_date(v):
+    v = norm(v)
+    m = re.search(r"(\d{4})[/\-年](\d{1,2})[/\-月](\d{1,2})", v)
+    if m:
+        return f"{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
+    m = re.search(r"(\d{2})/(\d{1,2})/(\d{1,2})", v)
+    if m:
+        return f"20{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
+    return None
+
+
+def extract_code(code_cell, name_cell):
+    for v in (code_cell, name_cell):
+        m = re.search(r"\b(\d{4})\b", norm(v))
+        if m:
+            return m.group(1)
+    return None
+
+
+def parse_file(path, broker):
+    rows = read_csv_rows(path)
+    hi, header = find_header(rows)
+    idx = {k: col_idx(header, v) for k, v in CAND.items()}
+    if idx["date"] is None or idx["qty"] is None:
+        raise SystemExit(f"必須列が見つかりません: {path}")
+    fills = []
+    for row in rows[hi + 1:]:
+        if not row or len(row) < 3:
+            continue
+        cells = [norm(c) for c in row]
+        get = lambda k: cells[idx[k]] if idx[k] is not None and idx[k] < len(cells) else ""
+        date = parse_date(get("date"))
+        side = parse_side(get("side"))
+        qty = to_num(get("qty"))
+        price = to_num(get("price"))
+        code = extract_code(get("code"), get("name"))
+        if not (date and side and qty and price and code):
+            continue
+        name = re.sub(r"\b\d{4}\b", "", get("name")).strip() or None
+        fee = to_num(get("fee")) or 0.0
+        tax = to_num(get("tax")) or 0.0
+        rec = {
+            "broker": broker, "date": date, "code4": code, "name": name,
+            "side": side, "qty": qty, "price": price,
+            "fee": round(fee + tax, 1), "account": get("account") or None,
+        }
+        rec["id"] = hashlib.md5(
+            f"{broker}|{date}|{code}|{side}|{qty}|{price}".encode()).hexdigest()[:12]
+        fills.append(rec)
+    return fills
+
+
+def main():
+    if len(sys.argv) < 3:
+        raise SystemExit(__doc__)
+    broker = sys.argv[1]
+    data = {"updated_at": None, "fills": []}
+    if OUT.exists():
+        data = json.loads(OUT.read_text())
+    known = {f["id"] for f in data["fills"]}
+    added = 0
+    for p in sys.argv[2:]:
+        for f in parse_file(p, broker):
+            if f["id"] not in known:
+                data["fills"].append(f)
+                known.add(f["id"])
+                added += 1
+    data["fills"].sort(key=lambda f: (f["date"], f["code4"]))
+    import datetime as dt
+    data["updated_at"] = dt.datetime.now().strftime("%Y-%m-%d %H:%M")
+    OUT.parent.mkdir(parents=True, exist_ok=True)
+    OUT.write_text(json.dumps(data, ensure_ascii=False))
+    print(f"取込 {added}件 追加 (合計 {len(data['fills'])}件)")
+
+
+if __name__ == "__main__":
+    main()
