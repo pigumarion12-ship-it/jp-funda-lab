@@ -91,6 +91,15 @@ def report():
             "ret_1m": ret(21), "ret_3m": ret(63),
             "ret_6m": ret(126), "ret_12m": ret(250),
         }
+    if len(px):
+        out["ohlc"] = {
+            "d": [str(x) for x in px["Date"]],
+            "o": [_j(x) for x in px["AdjO"]],
+            "h": [_j(x) for x in px["AdjH"]],
+            "l": [_j(x) for x in px["AdjL"]],
+            "c": [_j(x) for x in px["AdjC"]],
+            "v": [_j(x) for x in px["AdjVo"]] if "AdjVo" in px.columns else None,
+        }
     if isinstance(ed, dict) and ed.get(code4):
         out["edinet"] = {k: _j(v) for k, v in dict(ed[code4]).items()}
     path = f"docs/data/deep/metrics_{code4}.json"
