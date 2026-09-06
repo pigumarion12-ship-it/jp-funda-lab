@@ -34,8 +34,8 @@ def report():
     import json
     import numpy as np
     import pandas as pd
-    code4 = (os.environ.get("REPORT_CODE") or "").strip()
-    if not code4:
+    codes_in = [c.strip() for c in (os.environ.get("REPORT_CODE") or "").split(",") if c.strip()]
+    if not codes_in:
         raise SystemExit("REPORT_CODE を指定してください")
     prices, stmts, listed, _ = data.load_all()
     prices = data.adjust_splits(prices)
@@ -58,6 +58,13 @@ def report():
             return sorted(v)
         return v if isinstance(v, (str, int, bool, list, dict)) else str(v)
 
+    for code4 in codes_in:
+        _one(code4, df, stmts, prices, ed, _j)
+
+
+def _one(code4, df, stmts, prices, ed, _j):
+    import json
+    import pandas as pd
     out = {"code4": code4,
            "generated_at": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M")}
     row = df[df["code4"].astype(str) == code4]
