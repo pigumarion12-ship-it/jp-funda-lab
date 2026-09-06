@@ -4,9 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "update / edinet / articles / build / all"
+        description: "update / edinet / articles / build / all / report"
         required: false
         default: "all"
+      code:
+        description: "mode=report時の銘柄コード(4桁)"
+        required: false
+        default: ""
       backfill_days:
         description: "EDINET取得日数 (mode=edinet/all時。既定10)"
         required: false
@@ -49,6 +53,7 @@ jobs:
           JQUANTS_API_KEY: ${{ secrets.JQUANTS_API_KEY }}
           EDINET_API_KEY: ${{ secrets.EDINET_API_KEY }}
           MODE: ${{ inputs.mode }}
+          REPORT_CODE: ${{ inputs.code }}
           BACKFILL_DAYS: ${{ inputs.backfill_days }}
           PRICE_FULL_REFRESH: ${{ inputs.full_prices }}
         run: |
