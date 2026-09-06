@@ -1,3 +1,8 @@
 adjust_splits: 67 件の分割/併合を自前調整
 edinet coverage: codes=3917 {'cash': 3916, 'cur_assets': 3860, 'liabilities': 3917, 'inv_sec': 3399, 'borrowings': 3917, 'inventories': 2740}
 report: docs/data/deep/metrics_9551.json metrics=True stmts=23
+report: docs/data/deep/metrics_6370.json metrics=True stmts=27
+report: docs/data/deep/metrics_6368.json metrics=True stmts=26
+report: docs/data/deep/metrics_6332.json metrics=True stmts=30
+report: docs/data/deep/metrics_2325.json metrics=True stmts=28
+report: docs/data/deep/metrics_9793.json metrics=True stmts=26
